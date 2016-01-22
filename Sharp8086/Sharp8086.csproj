@@ -42,6 +42,8 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="CPU\ConventionalPageController.cs" />
+    <Compile Include="CPU\IInstructionFetcher.cs" />
+    <Compile Include="CPU\OpCodeManager.cs" />
     <Compile Include="Peripheral\IO\IDrive.cs" />
     <Compile Include="Core\IMemoryMappedDevice.cs" />
     <Compile Include="CPU\IOPageController.cs" />

@@ -22,8 +22,6 @@
 // SOFTWARE.
 #endregion
 
-using System.Collections.Generic;
-
 namespace Sharp8086.Core
 {
     public interface ICpu
