@@ -40,8 +40,9 @@ namespace Sharp8086.Emulator
             using (var disk = File.OpenRead("TestDisks/Dos1.25.imd"))
                 cpu.AttachDevice(new ImdDrive(disk));
 
-            while (true)
-                cpu.ProcessInstruction();
+            while (cpu.ProcessInstruction())
+            {
+            }
         }
     }
 }

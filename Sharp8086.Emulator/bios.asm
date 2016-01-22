@@ -41,15 +41,11 @@ cpu	8086
 
 %define emulatorRead emulatorCall 0x02
 
-main:
+data:
+	cursorX db 0
+	cursorY db 0
 
-	jmp	bios_entry
-
-cursorX db 0
-cursorY db 0
-
-bios_entry:
-
+BiosEntry:
 	; Set up stack to F000:F000
 
 	mov	sp, 0xF000
@@ -335,3 +331,9 @@ int_table	dw int0
           	dw int1f
 
 itbl_size	dw $-int_table
+
+; Fills bios with 0xCC except reset vector
+times 0xFFF0-$+data db 0xCC
+jmp BiosEntry
+times 0xFFFF-$+data db 0xCC
+db 0xCC

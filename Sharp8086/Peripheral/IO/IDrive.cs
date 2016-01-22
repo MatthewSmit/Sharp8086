@@ -30,7 +30,7 @@ namespace Sharp8086.Peripheral.IO
     {
         byte[] Read(int offset, int size);
 
-        bool IsHardDrive { get; }
+        bool IsFloppyDrive { get; }
         int SectorSize { get; }
         int NumberSectors { get; }
         int NumberHeads { get; }

@@ -7,6 +7,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sharp8086", "Sharp8086\Shar
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sharp8086.Emulator", "Sharp8086.Emulator\Sharp8086.Emulator.csproj", "{D4D3A092-A450-4A90-B15E-B87988FBC376}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sharp8086.Test", "Sharp8086.Test\Sharp8086.Test.csproj", "{1E97D603-8F3C-47D2-A005-254AD045C090}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -21,6 +23,10 @@ Global
 		{D4D3A092-A450-4A90-B15E-B87988FBC376}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{D4D3A092-A450-4A90-B15E-B87988FBC376}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{D4D3A092-A450-4A90-B15E-B87988FBC376}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1E97D603-8F3C-47D2-A005-254AD045C090}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1E97D603-8F3C-47D2-A005-254AD045C090}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1E97D603-8F3C-47D2-A005-254AD045C090}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1E97D603-8F3C-47D2-A005-254AD045C090}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

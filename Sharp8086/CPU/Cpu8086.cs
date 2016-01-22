@@ -23,7 +23,6 @@
 #endregion
 
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using Sharp8086.Core;
@@ -33,6 +32,14 @@ namespace Sharp8086.CPU
 {
     public sealed class Cpu8086 : ICpu
     {
+        [Flags]
+        private enum OpcodeFlag : byte
+        {
+            None = 0,
+            HasRM = 1 << 0,
+            Signed = 1 << 1
+        }
+
         private enum InstructionType
         {
             Invalid,
@@ -68,8 +75,6 @@ namespace Sharp8086.CPU
             CallNear,
             CallFar,
             Wait,
-            Pushf,
-            Popf,
             Sahf,
             Lahf,
             Movs,
@@ -135,38 +140,38 @@ namespace Sharp8086.CPU
 
         private static readonly InstructionType[] typeLookup =
         {
-            InstructionType.Add, InstructionType.Add, InstructionType.Add, InstructionType.Add, InstructionType.Add, InstructionType.Add, InstructionType.Push, InstructionType.Pop,
-            InstructionType.Or, InstructionType.Or, InstructionType.Or, InstructionType.Or, InstructionType.Or, InstructionType.Or, InstructionType.Push, InstructionType.EmulatorSpecial,
-            InstructionType.Adc, InstructionType.Adc, InstructionType.Adc, InstructionType.Adc, InstructionType.Adc, InstructionType.Adc, InstructionType.Push, InstructionType.Pop,
-            InstructionType.Sbb, InstructionType.Sbb, InstructionType.Sbb, InstructionType.Sbb, InstructionType.Sbb, InstructionType.Sbb, InstructionType.Push, InstructionType.Pop,
-            InstructionType.And, InstructionType.And, InstructionType.And, InstructionType.And, InstructionType.And, InstructionType.And, InstructionType.Prefix, InstructionType.Daa,
-            InstructionType.Subtract, InstructionType.Subtract, InstructionType.Subtract, InstructionType.Subtract, InstructionType.Subtract, InstructionType.Subtract, InstructionType.Prefix, InstructionType.Das,
-            InstructionType.Xor, InstructionType.Xor, InstructionType.Xor, InstructionType.Xor, InstructionType.Xor, InstructionType.Xor, InstructionType.Prefix, InstructionType.Aaa,
-            InstructionType.Compare, InstructionType.Compare, InstructionType.Compare, InstructionType.Compare, InstructionType.Compare, InstructionType.Compare, InstructionType.Prefix, InstructionType.Aas,
-            InstructionType.Increment, InstructionType.Increment, InstructionType.Increment, InstructionType.Increment, InstructionType.Increment, InstructionType.Increment, InstructionType.Increment, InstructionType.Increment,
-            InstructionType.Decrement, InstructionType.Decrement, InstructionType.Decrement, InstructionType.Decrement, InstructionType.Decrement, InstructionType.Decrement, InstructionType.Decrement, InstructionType.Decrement,
-            InstructionType.Push, InstructionType.Push, InstructionType.Push, InstructionType.Push, InstructionType.Push, InstructionType.Push, InstructionType.Push, InstructionType.Push,
-            InstructionType.Pop, InstructionType.Pop, InstructionType.Pop, InstructionType.Pop, InstructionType.Pop, InstructionType.Pop, InstructionType.Pop, InstructionType.Pop,
-            InstructionType.Invalid, InstructionType.Invalid, InstructionType.Invalid, InstructionType.Invalid, InstructionType.Invalid, InstructionType.Invalid, InstructionType.Invalid, InstructionType.Invalid,
-            InstructionType.Invalid, InstructionType.Invalid, InstructionType.Invalid, InstructionType.Invalid, InstructionType.Invalid, InstructionType.Invalid, InstructionType.Invalid, InstructionType.Invalid,
-            InstructionType.JO, InstructionType.JNO, InstructionType.JB, InstructionType.JNB, InstructionType.JZ, InstructionType.JNZ, InstructionType.JBE, InstructionType.JA,
-            InstructionType.JS, InstructionType.JNS, InstructionType.JPE, InstructionType.JPO, InstructionType.JL, InstructionType.JGE, InstructionType.JLE, InstructionType.JG,
-            InstructionType.Group, InstructionType.Group, InstructionType.Group, InstructionType.Group, InstructionType.Test, InstructionType.Test, InstructionType.Xchg, InstructionType.Xchg,
-            InstructionType.Move, InstructionType.Move, InstructionType.Move, InstructionType.Move, InstructionType.Move, InstructionType.Lea, InstructionType.Move, InstructionType.Pop,
-            InstructionType.Nop, InstructionType.Xchg, InstructionType.Xchg, InstructionType.Xchg, InstructionType.Xchg, InstructionType.Xchg, InstructionType.Xchg, InstructionType.Xchg,
-            InstructionType.Cbw, InstructionType.Cwd, InstructionType.CallFar, InstructionType.Wait, InstructionType.Pushf, InstructionType.Popf, InstructionType.Sahf, InstructionType.Lahf,
-            InstructionType.Move, InstructionType.Move, InstructionType.Move, InstructionType.Move, InstructionType.Movs, InstructionType.Movs, InstructionType.Cmps, InstructionType.Cmps,
-            InstructionType.Test, InstructionType.Test, InstructionType.Stos, InstructionType.Stos, InstructionType.Lods, InstructionType.Lods, InstructionType.Scas, InstructionType.Scas,
-            InstructionType.Move, InstructionType.Move, InstructionType.Move, InstructionType.Move, InstructionType.Move, InstructionType.Move, InstructionType.Move, InstructionType.Move,
-            InstructionType.Move, InstructionType.Move, InstructionType.Move, InstructionType.Move, InstructionType.Move, InstructionType.Move, InstructionType.Move, InstructionType.Move,
-            InstructionType.Group, InstructionType.Group, InstructionType.ReturnNear, InstructionType.ReturnNear, InstructionType.Les, InstructionType.Lds, InstructionType.Move, InstructionType.Move,
-            InstructionType.Invalid, InstructionType.Invalid, InstructionType.ReturnFar, InstructionType.ReturnFar, InstructionType.Int, InstructionType.Int, InstructionType.Into, InstructionType.ReturnInterrupt,
-            InstructionType.Group, InstructionType.Group, InstructionType.Group, InstructionType.Group, InstructionType.Aam, InstructionType.Aad, InstructionType.Invalid, InstructionType.Xlat,
-            InstructionType.Invalid, InstructionType.Invalid, InstructionType.Invalid, InstructionType.Invalid, InstructionType.Invalid, InstructionType.Invalid, InstructionType.Invalid, InstructionType.Invalid,
-            InstructionType.Loopnz, InstructionType.Loopz, InstructionType.Loop, InstructionType.Jcxz, InstructionType.In, InstructionType.In, InstructionType.Out, InstructionType.Out,
-            InstructionType.CallNearRelative, InstructionType.Jump, InstructionType.FarJump, InstructionType.Jump, InstructionType.In, InstructionType.In, InstructionType.Out, InstructionType.Out,
-            InstructionType.Prefix, InstructionType.Invalid, InstructionType.Prefix, InstructionType.Prefix, InstructionType.Hlt, InstructionType.Cmc, InstructionType.Group, InstructionType.Group,
-            InstructionType.Clc, InstructionType.Stc, InstructionType.Cli, InstructionType.Sti, InstructionType.Cld, InstructionType.Std, InstructionType.Group, InstructionType.Group
+            /*0x00*/ InstructionType.Add, InstructionType.Add, InstructionType.Add, InstructionType.Add, InstructionType.Add, InstructionType.Add, InstructionType.Push, InstructionType.Pop,
+            /*0x08*/ InstructionType.Or, InstructionType.Or, InstructionType.Or, InstructionType.Or, InstructionType.Or, InstructionType.Or, InstructionType.Push, InstructionType.EmulatorSpecial,
+            /*0x10*/ InstructionType.Adc, InstructionType.Adc, InstructionType.Adc, InstructionType.Adc, InstructionType.Adc, InstructionType.Adc, InstructionType.Push, InstructionType.Pop,
+            /*0x18*/ InstructionType.Sbb, InstructionType.Sbb, InstructionType.Sbb, InstructionType.Sbb, InstructionType.Sbb, InstructionType.Sbb, InstructionType.Push, InstructionType.Pop,
+            /*0x20*/ InstructionType.And, InstructionType.And, InstructionType.And, InstructionType.And, InstructionType.And, InstructionType.And, InstructionType.Prefix, InstructionType.Daa,
+            /*0x28*/ InstructionType.Subtract, InstructionType.Subtract, InstructionType.Subtract, InstructionType.Subtract, InstructionType.Subtract, InstructionType.Subtract, InstructionType.Prefix, InstructionType.Das,
+            /*0x30*/ InstructionType.Xor, InstructionType.Xor, InstructionType.Xor, InstructionType.Xor, InstructionType.Xor, InstructionType.Xor, InstructionType.Prefix, InstructionType.Aaa,
+            /*0x38*/ InstructionType.Compare, InstructionType.Compare, InstructionType.Compare, InstructionType.Compare, InstructionType.Compare, InstructionType.Compare, InstructionType.Prefix, InstructionType.Aas,
+            /*0x40*/ InstructionType.Increment, InstructionType.Increment, InstructionType.Increment, InstructionType.Increment, InstructionType.Increment, InstructionType.Increment, InstructionType.Increment, InstructionType.Increment,
+            /*0x48*/ InstructionType.Decrement, InstructionType.Decrement, InstructionType.Decrement, InstructionType.Decrement, InstructionType.Decrement, InstructionType.Decrement, InstructionType.Decrement, InstructionType.Decrement,
+            /*0x50*/ InstructionType.Push, InstructionType.Push, InstructionType.Push, InstructionType.Push, InstructionType.Push, InstructionType.Push, InstructionType.Push, InstructionType.Push,
+            /*0x58*/ InstructionType.Pop, InstructionType.Pop, InstructionType.Pop, InstructionType.Pop, InstructionType.Pop, InstructionType.Pop, InstructionType.Pop, InstructionType.Pop,
+            /*0x60*/ InstructionType.Invalid, InstructionType.Invalid, InstructionType.Invalid, InstructionType.Invalid, InstructionType.Invalid, InstructionType.Invalid, InstructionType.Invalid, InstructionType.Invalid,
+            /*0x68*/ InstructionType.Invalid, InstructionType.Invalid, InstructionType.Invalid, InstructionType.Invalid, InstructionType.Invalid, InstructionType.Invalid, InstructionType.Invalid, InstructionType.Invalid,
+            /*0x70*/ InstructionType.JO, InstructionType.JNO, InstructionType.JB, InstructionType.JNB, InstructionType.JZ, InstructionType.JNZ, InstructionType.JBE, InstructionType.JA,
+            /*0x78*/ InstructionType.JS, InstructionType.JNS, InstructionType.JPE, InstructionType.JPO, InstructionType.JL, InstructionType.JGE, InstructionType.JLE, InstructionType.JG,
+            /*0x80*/ InstructionType.Group, InstructionType.Group, InstructionType.Group, InstructionType.Group, InstructionType.Test, InstructionType.Test, InstructionType.Xchg, InstructionType.Xchg,
+            /*0x88*/ InstructionType.Move, InstructionType.Move, InstructionType.Move, InstructionType.Move, InstructionType.Move, InstructionType.Lea, InstructionType.Move, InstructionType.Pop,
+            /*0x90*/ InstructionType.Nop, InstructionType.Xchg, InstructionType.Xchg, InstructionType.Xchg, InstructionType.Xchg, InstructionType.Xchg, InstructionType.Xchg, InstructionType.Xchg,
+            /*0x98*/ InstructionType.Cbw, InstructionType.Cwd, InstructionType.CallFar, InstructionType.Wait, InstructionType.Push, InstructionType.Pop, InstructionType.Sahf, InstructionType.Lahf,
+            /*0xA0*/ InstructionType.Move, InstructionType.Move, InstructionType.Move, InstructionType.Move, InstructionType.Movs, InstructionType.Movs, InstructionType.Cmps, InstructionType.Cmps,
+            /*0xA8*/ InstructionType.Test, InstructionType.Test, InstructionType.Stos, InstructionType.Stos, InstructionType.Lods, InstructionType.Lods, InstructionType.Scas, InstructionType.Scas,
+            /*0xB0*/ InstructionType.Move, InstructionType.Move, InstructionType.Move, InstructionType.Move, InstructionType.Move, InstructionType.Move, InstructionType.Move, InstructionType.Move,
+            /*0xB8*/ InstructionType.Move, InstructionType.Move, InstructionType.Move, InstructionType.Move, InstructionType.Move, InstructionType.Move, InstructionType.Move, InstructionType.Move,
+            /*0xC0*/ InstructionType.Group, InstructionType.Group, InstructionType.ReturnNear, InstructionType.ReturnNear, InstructionType.Les, InstructionType.Lds, InstructionType.Move, InstructionType.Move,
+            /*0xC8*/ InstructionType.Invalid, InstructionType.Invalid, InstructionType.ReturnFar, InstructionType.ReturnFar, InstructionType.Int, InstructionType.Int, InstructionType.Into, InstructionType.ReturnInterrupt,
+            /*0xD0*/ InstructionType.Group, InstructionType.Group, InstructionType.Group, InstructionType.Group, InstructionType.Aam, InstructionType.Aad, InstructionType.Invalid, InstructionType.Xlat,
+            /*0xD8*/ InstructionType.Invalid, InstructionType.Invalid, InstructionType.Invalid, InstructionType.Invalid, InstructionType.Invalid, InstructionType.Invalid, InstructionType.Invalid, InstructionType.Invalid,
+            /*0xE0*/ InstructionType.Loopnz, InstructionType.Loopz, InstructionType.Loop, InstructionType.Jcxz, InstructionType.In, InstructionType.In, InstructionType.Out, InstructionType.Out,
+            /*0xE8*/ InstructionType.CallNearRelative, InstructionType.Jump, InstructionType.FarJump, InstructionType.Jump, InstructionType.In, InstructionType.In, InstructionType.Out, InstructionType.Out,
+            /*0xF0*/ InstructionType.Prefix, InstructionType.Invalid, InstructionType.Prefix, InstructionType.Prefix, InstructionType.Hlt, InstructionType.Cmc, InstructionType.Group, InstructionType.Group,
+            /*0xF8*/ InstructionType.Clc, InstructionType.Stc, InstructionType.Cli, InstructionType.Sti, InstructionType.Cld, InstructionType.Std, InstructionType.Group, InstructionType.Group
         };
 
         private static readonly InstructionType[] opcodeExtension80 =
@@ -204,44 +209,44 @@ namespace Sharp8086.CPU
             InstructionType.Increment, InstructionType.Decrement, InstructionType.CallNear, InstructionType.CallFar, InstructionType.Jump, InstructionType.FarJump, InstructionType.Push, InstructionType.Invalid
         };
 
-        private static readonly bool[] rmByte =
+        private static readonly OpcodeFlag[] opcodeFlag =
         {
-            true, true, true, true, false, false, false, false, true, true, true, true, false, false, false, false,
-            true, true, true, true, false, false, false, false, true, true, true, true, false, false, false, false,
-            true, true, true, true, false, false, false, false, true, true, true, true, false, false, false, false,
-            true, true, true, true, false, false, false, false, true, true, true, true, false, false, false, false,
-            false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false,
-            false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false,
-            false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false,
-            false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false,
-            true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true,
-            false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false,
-            false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false,
-            false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false,
-            true, true, false, false, true, true, true, true, false, false, false, false, false, false, false, false,
-            true, true, true, true, false, false, false, false, false, false, false, false, false, false, false, false,
-            false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false,
-            false, false, false, false, false, false, true, true, false, false, false, false, false, false, true, true
+            /*0x00*/ OpcodeFlag.HasRM, OpcodeFlag.HasRM, OpcodeFlag.HasRM, OpcodeFlag.HasRM, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.HasRM, OpcodeFlag.HasRM, OpcodeFlag.HasRM, OpcodeFlag.HasRM, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None,
+            /*0x10*/ OpcodeFlag.HasRM, OpcodeFlag.HasRM, OpcodeFlag.HasRM, OpcodeFlag.HasRM, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.HasRM, OpcodeFlag.HasRM, OpcodeFlag.HasRM, OpcodeFlag.HasRM, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None,
+            /*0x20*/ OpcodeFlag.HasRM, OpcodeFlag.HasRM, OpcodeFlag.HasRM, OpcodeFlag.HasRM, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.HasRM, OpcodeFlag.HasRM, OpcodeFlag.HasRM, OpcodeFlag.HasRM, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None,
+            /*0x30*/ OpcodeFlag.HasRM, OpcodeFlag.HasRM, OpcodeFlag.HasRM, OpcodeFlag.HasRM, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.HasRM, OpcodeFlag.HasRM, OpcodeFlag.HasRM, OpcodeFlag.HasRM, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None,
+            /*0x40*/ OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None,
+            /*0x50*/ OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None,
+            /*0x60*/ OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None,
+            /*0x70*/ OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None,
+            /*0x80*/ OpcodeFlag.HasRM, OpcodeFlag.HasRM, OpcodeFlag.HasRM, OpcodeFlag.HasRM | OpcodeFlag.Signed, OpcodeFlag.HasRM, OpcodeFlag.HasRM, OpcodeFlag.HasRM, OpcodeFlag.HasRM, OpcodeFlag.HasRM, OpcodeFlag.HasRM, OpcodeFlag.HasRM, OpcodeFlag.HasRM, OpcodeFlag.HasRM, OpcodeFlag.HasRM, OpcodeFlag.HasRM, OpcodeFlag.HasRM,
+            /*0x90*/ OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None,
+            /*0xA0*/ OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None,
+            /*0xB0*/ OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None,
+            /*0xC0*/ OpcodeFlag.HasRM, OpcodeFlag.HasRM, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.HasRM, OpcodeFlag.HasRM, OpcodeFlag.HasRM, OpcodeFlag.HasRM, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None,
+            /*0xD0*/ OpcodeFlag.HasRM, OpcodeFlag.HasRM, OpcodeFlag.HasRM, OpcodeFlag.HasRM, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None,
+            /*0xE0*/ OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None,
+            /*0xF0*/ OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.HasRM, OpcodeFlag.HasRM, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.None, OpcodeFlag.HasRM, OpcodeFlag.HasRM
         };
 
         private static readonly byte[] opcodeSize =
         {
-            1, 2, 1, 2, 1, 2, 2, 2, 1, 2, 1, 2, 1, 2, 2, 2,
-            1, 2, 1, 2, 1, 2, 2, 2, 1, 2, 1, 2, 1, 2, 2, 2,
-            1, 2, 1, 2, 1, 2, 2, 2, 1, 2, 1, 2, 1, 2, 2, 2,
-            1, 2, 1, 2, 1, 2, 2, 2, 1, 2, 1, 2, 1, 2, 2, 2,
-            2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
-            2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
-            2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
-            1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-            1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 2, 2, 2, 2,
-            2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
-            2, 2, 1, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 2,
-            1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2,
-            1, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 1, 2, 2,
-            1, 2, 1, 2, 1, 1, 2, 2, 2, 2, 2, 2, 2, 1, 2, 2,
-            1, 1, 1, 1, 1, 2, 1, 2, 2, 2, 2, 1, 1, 2, 1, 2,
-            2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2
+            /*0x00*/ 1, 2, 1, 2, 1, 2, 2, 2, 1, 2, 1, 2, 1, 2, 2, 2,
+            /*0x10*/ 1, 2, 1, 2, 1, 2, 2, 2, 1, 2, 1, 2, 1, 2, 2, 2,
+            /*0x20*/ 1, 2, 1, 2, 1, 2, 2, 2, 1, 2, 1, 2, 1, 2, 2, 2,
+            /*0x30*/ 1, 2, 1, 2, 1, 2, 2, 2, 1, 2, 1, 2, 1, 2, 2, 2,
+            /*0x40*/ 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+            /*0x50*/ 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+            /*0x60*/ 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+            /*0x70*/ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+            /*0x80*/ 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 2, 2, 2, 2,
+            /*0x90*/ 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+            /*0xA0*/ 2, 2, 1, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 2,
+            /*0xB0*/ 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2,
+            /*0xC0*/ 1, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 1, 2, 2,
+            /*0xD0*/ 1, 2, 1, 2, 1, 1, 2, 2, 2, 2, 2, 2, 2, 1, 2, 2,
+            /*0xE0*/ 1, 1, 1, 1, 1, 2, 1, 2, 2, 2, 2, 1, 1, 2, 1, 2,
+            /*0xF0*/ 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2
         };
 
         private const int ARG_A = 0xFFF0;
@@ -268,62 +273,62 @@ namespace Sharp8086.CPU
 
         private static readonly int[] argument1Map =
         {
-            ARG_EB, ARG_EW, ARG_GB, ARG_GW, AL, AX, ES, ES, ARG_EB, ARG_EW, ARG_GB, ARG_GW, AL, AX, CS, ARG_IB,
-            ARG_EB, ARG_EW, ARG_GB, ARG_GW, AL, AX, SS, SS, ARG_EB, ARG_EW, ARG_GB, ARG_GW, AL, AX, DS, DS,
-            ARG_EB, ARG_EW, ARG_GB, ARG_GW, AL, AX, ARG_NONE, ARG_NONE, ARG_EB, ARG_EW, ARG_GB, ARG_GW, AL, AX, ARG_NONE, ARG_NONE,
-            ARG_EB, ARG_EW, ARG_GB, ARG_GW, AL, AX, ARG_NONE, ARG_NONE, ARG_EB, ARG_EW, ARG_GB, ARG_GW, AL, AX, ARG_NONE, ARG_NONE,
-            AX, CX, DX, BX, SP, BP, SI, DI, AX, CX, DX, BX, SP, BP, SI, DI,
-            AX, CX, DX, BX, SP, BP, SI, DI, AX, CX, DX, BX, SP, BP, SI, DI,
-            ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE,
-            ARG_JB, ARG_JB, ARG_JB, ARG_JB, ARG_JB, ARG_JB, ARG_JB, ARG_JB, ARG_JB, ARG_JB, ARG_JB, ARG_JB, ARG_JB, ARG_JB, ARG_JB, ARG_JB,
-            ARG_EB, ARG_EW, ARG_EB, ARG_EW, ARG_GB, ARG_GW, ARG_GB, ARG_GW, ARG_EB, ARG_EW, ARG_GB, ARG_GW, ARG_EW, ARG_GW, ARG_S, ARG_EW,
-            ARG_NONE, CX, DX, BX, SP, BP, SI, DI, ARG_NONE, ARG_NONE, ARG_A, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE,
-            AL, AX, ARG_OB, ARG_OW, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, AL, AX, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE,
-            AL, CL,DL,BL,AH, CH,DH,BH,AX, CX, DX, BX, SP, BP, SI, DI,
-            ARG_EB, ARG_EW, ARG_IW, ARG_NONE, ARG_GW, ARG_GW, ARG_EB, ARG_EW, ARG_NONE, ARG_NONE, ARG_IW, ARG_NONE, ARG_3, ARG_IB, ARG_NONE, ARG_NONE,
-            ARG_EB, ARG_EW, ARG_EB, ARG_EW, ARG_IB, ARG_IB, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE,
-            ARG_JB, ARG_JB, ARG_JB, ARG_JB, AL, AX, ARG_IB, ARG_IB, ARG_JW, ARG_JW, ARG_A, ARG_JB, AL, AX, DX, DX,
-            ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_EB, ARG_EW, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_EB, ARG_EW
+            /*0x00*/ ARG_EB, ARG_EW, ARG_GB, ARG_GW, AL, AX, ES, ES, ARG_EB, ARG_EW, ARG_GB, ARG_GW, AL, AX, CS, ARG_IB,
+            /*0x10*/ ARG_EB, ARG_EW, ARG_GB, ARG_GW, AL, AX, SS, SS, ARG_EB, ARG_EW, ARG_GB, ARG_GW, AL, AX, DS, DS,
+            /*0x20*/ ARG_EB, ARG_EW, ARG_GB, ARG_GW, AL, AX, ARG_NONE, ARG_NONE, ARG_EB, ARG_EW, ARG_GB, ARG_GW, AL, AX, ARG_NONE, ARG_NONE,
+            /*0x30*/ ARG_EB, ARG_EW, ARG_GB, ARG_GW, AL, AX, ARG_NONE, ARG_NONE, ARG_EB, ARG_EW, ARG_GB, ARG_GW, AL, AX, ARG_NONE, ARG_NONE,
+            /*0x40*/ AX, CX, DX, BX, SP, BP, SI, DI, AX, CX, DX, BX, SP, BP, SI, DI,
+            /*0x50*/ AX, CX, DX, BX, SP, BP, SI, DI, AX, CX, DX, BX, SP, BP, SI, DI,
+            /*0x60*/ ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE,
+            /*0x70*/ ARG_JB, ARG_JB, ARG_JB, ARG_JB, ARG_JB, ARG_JB, ARG_JB, ARG_JB, ARG_JB, ARG_JB, ARG_JB, ARG_JB, ARG_JB, ARG_JB, ARG_JB, ARG_JB,
+            /*0x80*/ ARG_EB, ARG_EW, ARG_EB, ARG_EW, ARG_GB, ARG_GW, ARG_GB, ARG_GW, ARG_EB, ARG_EW, ARG_GB, ARG_GW, ARG_EW, ARG_GW, ARG_S, ARG_EW,
+            /*0x90*/ ARG_NONE, CX, DX, BX, SP, BP, SI, DI, ARG_NONE, ARG_NONE, ARG_A, ARG_NONE, FLAGS, FLAGS, ARG_NONE, ARG_NONE,
+            /*0xA0*/ AL, AX, ARG_OB, ARG_OW, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, AL, AX, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE,
+            /*0xB0*/ AL, CL,DL,BL,AH, CH,DH,BH,AX, CX, DX, BX, SP, BP, SI, DI,
+            /*0xC0*/ ARG_EB, ARG_EW, ARG_IW, ARG_NONE, ARG_GW, ARG_GW, ARG_EB, ARG_EW, ARG_NONE, ARG_NONE, ARG_IW, ARG_NONE, ARG_3, ARG_IB, ARG_NONE, ARG_NONE,
+            /*0xD0*/ ARG_EB, ARG_EW, ARG_EB, ARG_EW, ARG_IB, ARG_IB, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE,
+            /*0xE0*/ ARG_JB, ARG_JB, ARG_JB, ARG_JB, AL, AX, ARG_IB, ARG_IB, ARG_JW, ARG_JW, ARG_A, ARG_JB, AL, AX, DX, DX,
+            /*0xF0*/ ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_EB, ARG_EW, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_EB, ARG_EW
         };
 
         private static readonly int[] argument2Map =
         {
-            ARG_GB, ARG_GW, ARG_EB, ARG_EW, ARG_IB, ARG_IW, ARG_NONE, ARG_NONE, ARG_GB, ARG_GW, ARG_EB, ARG_EW, ARG_IB, ARG_IW, ARG_NONE, ARG_NONE,
-            ARG_GB, ARG_GW, ARG_EB, ARG_EW, ARG_IB, ARG_IW, ARG_NONE, ARG_NONE, ARG_GB, ARG_GW, ARG_EB, ARG_EW, ARG_IB, ARG_IW, ARG_NONE, ARG_NONE,
-            ARG_GB, ARG_GW, ARG_EB, ARG_EW, ARG_IB, ARG_IW, ARG_NONE, ARG_NONE, ARG_GB, ARG_GW, ARG_EB, ARG_EW, ARG_IB, ARG_IW, ARG_NONE, ARG_NONE,
-            ARG_GB, ARG_GW, ARG_EB, ARG_EW, ARG_IB, ARG_IW, ARG_NONE, ARG_NONE, ARG_GB, ARG_GW, ARG_EB, ARG_EW, ARG_IB, ARG_IW, ARG_NONE, ARG_NONE,
-            ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE,
-            ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE,
-            ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE,
-            ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE,
-            ARG_IB, ARG_IW, ARG_IB, ARG_IB, ARG_EB, ARG_EW, ARG_EB, ARG_EW, ARG_GB, ARG_GW, ARG_EB, ARG_EW, ARG_S, ARG_M, ARG_EW, ARG_EW,
-            ARG_NONE, AX, AX, AX, AX, AX, AX, AX, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE,
-            ARG_OB, ARG_OW, AL, AX, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_IB, ARG_IW, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE,
-            ARG_IB,ARG_IB,ARG_IB,ARG_IB,ARG_IB,ARG_IB,ARG_IB,ARG_IB,ARG_IW,ARG_IW,ARG_IW,ARG_IW,ARG_IW,ARG_IW,ARG_IW,ARG_IW,
-            ARG_IB, ARG_IB, ARG_NONE, ARG_NONE, ARG_M, ARG_M, ARG_IB, ARG_IW, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE,
-            ARG_1,ARG_1, CL, CL, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE,
-            ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_IB, ARG_IB, AL, AX, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, DX, DX, AL, AX,
-            ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE
+            /*0x00*/ ARG_GB, ARG_GW, ARG_EB, ARG_EW, ARG_IB, ARG_IW, ARG_NONE, ARG_NONE, ARG_GB, ARG_GW, ARG_EB, ARG_EW, ARG_IB, ARG_IW, ARG_NONE, ARG_NONE,
+            /*0x10*/ ARG_GB, ARG_GW, ARG_EB, ARG_EW, ARG_IB, ARG_IW, ARG_NONE, ARG_NONE, ARG_GB, ARG_GW, ARG_EB, ARG_EW, ARG_IB, ARG_IW, ARG_NONE, ARG_NONE,
+            /*0x20*/ ARG_GB, ARG_GW, ARG_EB, ARG_EW, ARG_IB, ARG_IW, ARG_NONE, ARG_NONE, ARG_GB, ARG_GW, ARG_EB, ARG_EW, ARG_IB, ARG_IW, ARG_NONE, ARG_NONE,
+            /*0x30*/ ARG_GB, ARG_GW, ARG_EB, ARG_EW, ARG_IB, ARG_IW, ARG_NONE, ARG_NONE, ARG_GB, ARG_GW, ARG_EB, ARG_EW, ARG_IB, ARG_IW, ARG_NONE, ARG_NONE,
+            /*0x40*/ ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE,
+            /*0x50*/ ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE,
+            /*0x60*/ ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE,
+            /*0x70*/ ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE,
+            /*0x80*/ ARG_IB, ARG_IW, ARG_IB, ARG_IB, ARG_EB, ARG_EW, ARG_EB, ARG_EW, ARG_GB, ARG_GW, ARG_EB, ARG_EW, ARG_S, ARG_M, ARG_EW, ARG_EW,
+            /*0x90*/ ARG_NONE, AX, AX, AX, AX, AX, AX, AX, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE,
+            /*0xA0*/ ARG_OB, ARG_OW, AL, AX, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_IB, ARG_IW, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE,
+            /*0xB0*/ ARG_IB,ARG_IB,ARG_IB,ARG_IB,ARG_IB,ARG_IB,ARG_IB,ARG_IB,ARG_IW,ARG_IW,ARG_IW,ARG_IW,ARG_IW,ARG_IW,ARG_IW,ARG_IW,
+            /*0xC0*/ ARG_IB, ARG_IB, ARG_NONE, ARG_NONE, ARG_M, ARG_M, ARG_IB, ARG_IW, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE,
+            /*0xD0*/ ARG_1,ARG_1, CL, CL, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE,
+            /*0xE0*/ ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_IB, ARG_IB, AL, AX, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, DX, DX, AL, AX,
+            /*0xF0*/ ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE, ARG_NONE
         };
 
         private static readonly bool[] parityLookup =
         {
-            true, false, false, true, false, true, true, false, false, true, true, false, true, false, false, true,
-            false, true, true, false, true, false, false, true, true, false, false, true, false, true, true, false,
-            false, true, true, false, true, false, false, true, true, false, false, true, false, true, true, false,
-            true, false, false, true, false, true, true, false, false, true, true, false, true, false, false, true,
-            false, true, true, false, true, false, false, true, true, false, false, true, false, true, true, false,
-            true, false, false, true, false, true, true, false, false, true, true, false, true, false, false, true,
-            true, false, false, true, false, true, true, false, false, true, true, false, true, false, false, true,
-            false, true, true, false, true, false, false, true, true, false, false, true, false, true, true, false,
-            false, true, true, false, true, false, false, true, true, false, false, true, false, true, true, false,
-            true, false, false, true, false, true, true, false, false, true, true, false, true, false, false, true,
-            true, false, false, true, false, true, true, false, false, true, true, false, true, false, false, true,
-            false, true, true, false, true, false, false, true, true, false, false, true, false, true, true, false,
-            true, false, false, true, false, true, true, false, false, true, true, false, true, false, false, true,
-            false, true, true, false, true, false, false, true, true, false, false, true, false, true, true, false,
-            false, true, true, false, true, false, false, true, true, false, false, true, false, true, true, false,
-            true, false, false, true, false, true, true, false, false, true, true, false, true, false, false, true
+            /*0x00*/ true, false, false, true, false, true, true, false, false, true, true, false, true, false, false, true,
+            /*0x10*/ false, true, true, false, true, false, false, true, true, false, false, true, false, true, true, false,
+            /*0x20*/ false, true, true, false, true, false, false, true, true, false, false, true, false, true, true, false,
+            /*0x30*/ true, false, false, true, false, true, true, false, false, true, true, false, true, false, false, true,
+            /*0x40*/ false, true, true, false, true, false, false, true, true, false, false, true, false, true, true, false,
+            /*0x50*/ true, false, false, true, false, true, true, false, false, true, true, false, true, false, false, true,
+            /*0x60*/ true, false, false, true, false, true, true, false, false, true, true, false, true, false, false, true,
+            /*0x70*/ false, true, true, false, true, false, false, true, true, false, false, true, false, true, true, false,
+            /*0x80*/ false, true, true, false, true, false, false, true, true, false, false, true, false, true, true, false,
+            /*0x90*/ true, false, false, true, false, true, true, false, false, true, true, false, true, false, false, true,
+            /*0xA0*/ true, false, false, true, false, true, true, false, false, true, true, false, true, false, false, true,
+            /*0xB0*/ false, true, true, false, true, false, false, true, true, false, false, true, false, true, true, false,
+            /*0xC0*/ true, false, false, true, false, true, true, false, false, true, true, false, true, false, false, true,
+            /*0xD0*/ false, true, true, false, true, false, false, true, true, false, false, true, false, true, true, false,
+            /*0xE0*/ false, true, true, false, true, false, false, true, true, false, false, true, false, true, true, false,
+            /*0xF0*/ true, false, false, true, false, true, true, false, false, true, true, false, true, false, false, true
         };
 
         private struct Instruction
@@ -331,6 +336,7 @@ namespace Sharp8086.CPU
             public byte Prefix;
             public byte OperationSize;
             public InstructionType Type;
+            public OpcodeFlag Flag;
 
             public int Argument1;
             public int Argument1Value;
@@ -392,7 +398,7 @@ namespace Sharp8086.CPU
         public Cpu8086(Stream biosFile, uint memorySize)
         {
             Debug.Assert(typeLookup.Length == 256);
-            Debug.Assert(rmByte.Length == 256);
+            Debug.Assert(opcodeFlag.Length == 256);
             Debug.Assert(opcodeSize.Length == 256);
             Debug.Assert(argument1Map.Length == 256);
             Debug.Assert(argument2Map.Length == 256);
@@ -414,15 +420,15 @@ namespace Sharp8086.CPU
             for (var i = 0; i < IO_PORT_SIZE >> PAGE_SHIFT; i++)
                 pages[ioPortOffsetPage + i] = ioPageController;
 
-            if (biosFile.Length >= 0x10000)
-                throw new FileLoadException();
+            if (biosFile.Length != 0x10000)
+                throw new InvalidDataException();
             biosFile.Read(memory, 0xF0000, (int)biosFile.Length);
 
             registers[CS] = 0xF000;
-            registers[IP] = 0x0000;
+            registers[IP] = 0xFFF0;
         }
 
-        public void ProcessInstruction()
+        public bool ProcessInstruction()
         {
             string instructionText = $"{registers[CS]:X4}:{registers[IP]:X4} ";
             var instruction = DecodeInstruction();
@@ -504,9 +510,6 @@ namespace Sharp8086.CPU
                     break;
                 case InstructionType.Pop:
                     registers[instruction.Argument1] = Pop();
-                    break;
-                case InstructionType.Popf:
-                    registers[FLAGS] = Pop();
                     break;
                 case InstructionType.Push:
                     if (instruction.Argument1 == SP)
@@ -592,9 +595,14 @@ namespace Sharp8086.CPU
                             throw new NotImplementedException();
                     }
                     break;
+                case InstructionType.Hlt:
+                    // Goes back one instruction so it halts again if process instruction is called
+                    --registers[IP];
+                    return false;
                 default:
                     throw new NotImplementedException();
             }
+            return true;
         }
         private void ProcessFarJump(Instruction instruction)
         {
@@ -678,7 +686,7 @@ namespace Sharp8086.CPU
             var drive = device as IDrive;
             if (drive != null)
             {
-                var hdd = drive.IsHardDrive;
+                var hdd = !drive.IsFloppyDrive;
                 int i;
                 for (i = 0; i < 0x80; i++)
                 {
@@ -1184,59 +1192,84 @@ namespace Sharp8086.CPU
             }
 
             int result;
-            switch (instruction.Type)
+            if (instruction.Flag.HasFlag(OpcodeFlag.Signed))
             {
-                case InstructionType.Adc:
-                    result = value1 + value2 + ((registers[FLAGS] >> CF) & 1);
-                    break;
+                var value3 = (sbyte)(byte)value2;
+                switch (instruction.Type)
+                {
+                    case InstructionType.Adc:
+                        result = value1 + value3 + ((registers[FLAGS] >> CF) & 1);
+                        break;
 
-                case InstructionType.Add:
-                    result = value1 + value2;
-                    break;
+                    case InstructionType.Add:
+                        result = value1 + value3;
+                        break;
 
-                case InstructionType.And:
-                case InstructionType.Test:
-                    result = value1 & value2;
-                    break;
+                    case InstructionType.Compare:
+                    case InstructionType.Subtract:
+                        result = value1 - value3;
+                        break;
 
-                case InstructionType.Compare:
-                case InstructionType.Subtract:
-                    result = value1 - value2;
-                    break;
+                    default:
+                        throw new NotImplementedException();
+                }
+            }
+            else
+            {
+                switch (instruction.Type)
+                {
+                    case InstructionType.Adc:
+                        result = value1 + value2 + ((registers[FLAGS] >> CF) & 1);
+                        break;
 
-                case InstructionType.Or:
-                    result = value1 | value2;
-                    break;
+                    case InstructionType.Add:
+                        result = value1 + value2;
+                        break;
 
-                case InstructionType.Ror:
-                    if (instruction.OperationSize == 1)
-                    {
-                        const int mask = sizeof(byte) - 1;
-                        var shift = value2 & mask;
-                        result = (byte)(value1 >> shift) | (byte)(value1 << (-shift & mask));
-                    }
-                    else
-                    {
-                        const int mask = sizeof(ushort) - 1;
-                        var shift = value2 & mask;
-                        result = (ushort)(value1 >> shift) | (ushort)(value1 << (-shift & mask));
-                    }
-                    break;
+                    case InstructionType.And:
+                    case InstructionType.Test:
+                        result = value1 & value2;
+                        break;
 
-                case InstructionType.Shl:
-                    result = value1 << value2;
-                    break;
+                    case InstructionType.Compare:
+                    case InstructionType.Subtract:
+                        result = value1 - value2;
+                        break;
 
-                case InstructionType.Shr:
-                    result = value1 >> value2;
-                    break;
+                    case InstructionType.Or:
+                        result = value1 | value2;
+                        break;
 
-                case InstructionType.Xor:
-                    result = value1 ^ value2;
-                    break;
+                    case InstructionType.Ror:
+                        if (instruction.OperationSize == 1)
+                        {
+                            const int mask = sizeof(byte) - 1;
+                            var shift = value2 & mask;
+                            result = (byte)(value1 >> shift) | (byte)(value1 << (-shift & mask));
+                        }
+                        else
+                        {
+                            const int mask = sizeof(ushort) - 1;
+                            var shift = value2 & mask;
+                            result = (ushort)(value1 >> shift) | (ushort)(value1 << (-shift & mask));
+                        }
+                        break;
 
-                default:
-                    throw new NotImplementedException();
+                    case InstructionType.Shl:
+                        result = value1 << value2;
+                        break;
+
+                    case InstructionType.Shr:
+                        result = value1 >> value2;
+                        break;
+
+                    case InstructionType.Xor:
+                        result = value1 ^ value2;
+                        break;
+
+                    default:
+                        throw new NotImplementedException();
+                }
             }
 
             ushort truncResult;
@@ -1603,6 +1636,8 @@ namespace Sharp8086.CPU
                     return "ES";
                 case SS:
                     return "SS";
+                case FLAGS:
+                    return "FLAGS";
 
                 case ARG_BYTE_REGISTER:
                     switch (argumentValue)
@@ -1747,8 +1782,9 @@ namespace Sharp8086.CPU
             var argument1Type = argument1Map[opcode];
             var argument2Type = argument2Map[opcode];
 
+            instruction.Flag = opcodeFlag[opcode];
             byte rm = 0xFF;
-            if (rmByte[opcode])
+            if (instruction.Flag.HasFlag(OpcodeFlag.HasRM))
                 rm = GetInstructionByte();
 
             if (instruction.Type == InstructionType.Group)
@@ -1805,6 +1841,7 @@ namespace Sharp8086.CPU
                 case DS:
                 case ES:
                 case SS:
+                case FLAGS:
                     argument = argumentType;
                     argumentValue = ARG_NONE;
                     argumentDisplacement = ARG_NONE;
@@ -2045,6 +2082,13 @@ namespace Sharp8086.CPU
             return pages[pageNumber].ReadU8(address);
         }
         public ushort ReadU16(uint address) => (ushort)(ReadU8(address) | ReadU8(address + 1) << 8);
+        public byte[] ReadBytes(uint address, uint size)
+        {
+            var buffer = new byte[size];
+            for (var i = 0u; i < size; i++)
+                buffer[i] = ReadU8(address + i);
+            return buffer;
+        }
         public void WriteU8(uint address, byte value)
         {
             var pageNumber = address >> PAGE_SHIFT;
@@ -2055,10 +2099,10 @@ namespace Sharp8086.CPU
             WriteU8(address, (byte)(value & 0xFF));
             WriteU8(address + 1, (byte)(value >> 8 & 0xFF));
         }
-        public void WriteBytes(uint address, IReadOnlyList<byte> value)
+        public void WriteBytes(uint address, byte[] value)
         {
-            for (var i = 0; i < value.Count; i++)
-                WriteU8((uint)(address + i), value[i]);
+            for (var i = 0u; i < value.Length; i++)
+                WriteU8(address + i, value[i]);
         }
     }
 }

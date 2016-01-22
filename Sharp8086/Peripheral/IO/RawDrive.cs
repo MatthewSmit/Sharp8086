@@ -32,10 +32,10 @@ namespace Sharp8086.Peripheral.IO
         private bool readWrite;
         private readonly byte[] data;
 
-        public RawDrive(Stream backing, bool readWrite, bool isHardDrive, int sectorSize, int sectors, int cylinders, int heads)
+        public RawDrive(Stream backing, bool readWrite, bool isFloppyDrive, int sectorSize, int sectors, int cylinders, int heads)
         {
             this.readWrite = readWrite;
-            IsHardDrive = isHardDrive;
+            IsFloppyDrive = isFloppyDrive;
             SectorSize = sectorSize;
             NumberSectors = sectors;
             NumberCylinders = cylinders;
@@ -54,7 +54,7 @@ namespace Sharp8086.Peripheral.IO
             return buffer;
         }
 
-        public bool IsHardDrive { get; }
+        public bool IsFloppyDrive { get; }
 
         public int SectorSize { get; }
         public int NumberSectors { get; }

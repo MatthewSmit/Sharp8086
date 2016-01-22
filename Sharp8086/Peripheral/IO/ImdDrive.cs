@@ -28,6 +28,9 @@ using System.IO;
 
 namespace Sharp8086.Peripheral.IO
 {
+    /// <summary>
+    /// Reads disks in the ImageDisk format, does not support writing.
+    /// </summary>
     public sealed class ImdDrive : IDrive
     {
         private static readonly int[] sectorSizeMap =
@@ -49,58 +52,31 @@ namespace Sharp8086.Peripheral.IO
 
             var imdHeader = br.ReadBytes(31);
 
-            Debug.Assert(imdHeader[0] == 'I' &&
-                         imdHeader[1] == 'M' &&
-                         imdHeader[2] == 'D' &&
-                         imdHeader[29] == '\r' &&
-                         imdHeader[30] == '\n');
-
+            // Verify header and skip comment
+            if (imdHeader[0] != 'I' ||
+                imdHeader[1] != 'M' ||
+                imdHeader[2] != 'D' ||
+                imdHeader[29] != '\r' ||
+                imdHeader[30] != '\n')
+                throw new InvalidDataException();
             while (br.ReadByte() != 0x1A)
             {
             }
 
+            // Backup position and scan imd format for sizes
             var position = backing.Position;
-            while (backing.Position < backing.Length)
-            {
-                var mode = br.ReadBytes(5);
 
-                Debug.Assert(mode[0] <= 5);
-                Debug.Assert(mode[2] == 0 || mode[2] == 1);
-                Debug.Assert(mode[4] <= 6);
+            int numberCylinders, numberSectors, sectorSize;
+            GetImdSizes(br, out numberCylinders, out numberSectors, out sectorSize);
 
-                if (mode[2] == 0)
-                {
-                    Debug.Assert(mode[1] == NumberCylinders);
-                    NumberCylinders++;
-                }
-                else Debug.Assert(mode[1] == NumberCylinders - 1);
+            NumberCylinders = numberCylinders;
+            NumberSectors = numberSectors;
+            SectorSize = sectorSize;
 
-                if (NumberSectors == -1) NumberSectors = mode[3];
-                else Debug.Assert(NumberSectors == mode[3]);
-                if (SectorSize == -1) SectorSize = sectorSizeMap[mode[4]];
-                else Debug.Assert(SectorSize == sectorSizeMap[mode[4]]);
-
-                br.ReadBytes(NumberSectors);
-
-                for (var i = 0; i < NumberSectors; i++)
-                {
-                    var type = br.ReadByte();
-                    switch (type)
-                    {
-                        case 0x01:
-                            backing.Position += SectorSize;
-                            break;
-                        case 0x02:
-                            backing.Position++;
-                            break;
-                        default:
-                            throw new NotImplementedException();
-                    }
-                }
-            }
             backing.Position = position;
             data = new byte[SectorSize * NumberSectors * 2 * NumberCylinders];
 
+            // Read data from imd format
             while (backing.Position < backing.Length)
             {
                 var mode = br.ReadBytes(5);
@@ -125,7 +101,7 @@ namespace Sharp8086.Peripheral.IO
                                 data[offset + sector * SectorSize + j] = value;
                             break;
                         default:
-                            throw new NotImplementedException();
+                            throw new ArgumentOutOfRangeException();
                     }
                 }
             }
@@ -138,10 +114,57 @@ namespace Sharp8086.Peripheral.IO
             return buffer;
         }
 
-        public bool IsHardDrive => false;
+        private static void GetImdSizes(BinaryReader br, out int numberCylinders, out int numberSectors, out int sectorSize)
+        {
+            numberCylinders = 0;
+            numberSectors = -1;
+            sectorSize = -1;
 
-        public int SectorSize { get; } = -1;
-        public int NumberSectors { get; } = -1;
+            var backing = br.BaseStream;
+            while (backing.Position < backing.Length)
+            {
+                var mode = br.ReadBytes(5);
+
+                Debug.Assert(mode[0] <= 5);
+                Debug.Assert(mode[2] == 0 || mode[2] == 1);
+                Debug.Assert(mode[4] <= 6);
+
+                if (mode[2] == 0)
+                {
+                    Debug.Assert(mode[1] == numberCylinders);
+                    numberCylinders++;
+                }
+                else Debug.Assert(mode[1] == numberCylinders - 1);
+
+                if (numberSectors == -1) numberSectors = mode[3];
+                else Debug.Assert(numberSectors == mode[3]);
+                if (sectorSize == -1) sectorSize = sectorSizeMap[mode[4]];
+                else Debug.Assert(sectorSize == sectorSizeMap[mode[4]]);
+
+                br.ReadBytes(numberSectors);
+
+                for (var i = 0; i < numberSectors; i++)
+                {
+                    var type = br.ReadByte();
+                    switch (type)
+                    {
+                        case 0x01:
+                            backing.Position += sectorSize;
+                            break;
+                        case 0x02:
+                            backing.Position++;
+                            break;
+                        default:
+                            throw new ArgumentOutOfRangeException();
+                    }
+                }
+            }
+        }
+
+        public bool IsFloppyDrive => true;
+
+        public int SectorSize { get; }
+        public int NumberSectors { get; }
         public int NumberHeads => 2;
         public int NumberCylinders { get; }
     }

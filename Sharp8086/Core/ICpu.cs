@@ -22,11 +22,20 @@
 // SOFTWARE.
 #endregion
 
+using System.Collections.Generic;
+
 namespace Sharp8086.Core
 {
     public interface ICpu
     {
-        void ProcessInstruction();
+        /// <summary>
+        /// Executes one instruction
+        /// </summary>
+        /// <returns>Returns true until the cpu halts</returns>
+        bool ProcessInstruction();
         void AttachDevice(IDevice device);
+
+        byte[] ReadBytes(uint address, uint size);
+        void WriteBytes(uint address, byte[] value);
     }
 }
