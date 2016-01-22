@@ -43,6 +43,9 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />
+    <None Include="TestDisks\Dos6.22.img">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
     <None Include="TestDisks\Dos1.25.imd">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>

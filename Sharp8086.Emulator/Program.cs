@@ -22,9 +22,12 @@
 // SOFTWARE.
 #endregion
 
+using System;
 using System.IO;
+using SDL2;
 using Sharp8086.Core;
 using Sharp8086.CPU;
+using Sharp8086.Peripheral.Graphics;
 using Sharp8086.Peripheral.IO;
 
 namespace Sharp8086.Emulator
@@ -37,12 +40,47 @@ namespace Sharp8086.Emulator
             using (var file = File.OpenRead("bios"))
                 cpu = new Cpu8086(file, 1024 * 1024);
 
-            using (var disk = File.OpenRead("TestDisks/Dos1.25.imd"))
-                cpu.AttachDevice(new ImdDrive(disk));
+            using (var disk = File.OpenRead("TestDisks/Dos6.22.img"))
+                cpu.AttachDevice(new RawDrive(disk, false, true, 512, 18, 80, 2));
 
-            while (cpu.ProcessInstruction())
+            if (SDL.SDL_Init(SDL.SDL_INIT_VIDEO) != 0)
+                throw new InvalidOperationException();
+
+            var window = SDL.SDL_CreateWindow("CpuEmu", SDL.SDL_WINDOWPOS_CENTERED, SDL.SDL_WINDOWPOS_CENTERED, 64, 64, SDL.SDL_WindowFlags.SDL_WINDOW_SHOWN);
+            if (window == IntPtr.Zero)
+                throw new InvalidOperationException();
+
+            var renderer = SDL.SDL_CreateRenderer(window, -1, 0);
+            if (renderer == IntPtr.Zero)
+                throw new InvalidOperationException();
+
+            using (var graphics = new GraphicsDevice(window, renderer))
             {
+                cpu.AttachDevice(graphics);
+
+                var quit = false;
+                while (!quit)
+                {
+                    SDL.SDL_Event evt;
+                    while (SDL.SDL_PollEvent(out evt) != 0)
+                    {
+                        if (evt.type == SDL.SDL_EventType.SDL_QUIT)
+                            quit = true;
+                    }
+
+                    const int instructionsToProcess = 100;
+                    for (var i = instructionsToProcess; i >= 0; i--)
+                        if (!cpu.ProcessInstruction())
+                            break;
+
+                    graphics.Draw();
+                    SDL.SDL_RenderPresent(renderer);
+                }
             }
+
+            SDL.SDL_DestroyRenderer(renderer);
+            SDL.SDL_DestroyWindow(window);
+            SDL.SDL_Quit();
         }
     }
 }
