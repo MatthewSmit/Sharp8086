@@ -29,19 +29,20 @@ using Sharp8086.Core;
 using Sharp8086.CPU;
 using Sharp8086.Peripheral.Graphics;
 using Sharp8086.Peripheral.IO;
+using Sharp8086.Test;
 
 namespace Sharp8086.Emulator
 {
     internal static class Program
     {
+        private static ICpu cpu;
+
         private static void Main()
         {
-            ICpu cpu;
-            using (var file = File.OpenRead("bios"))
-                cpu = new Cpu8086(file, 1024 * 1024);
+            new Cpu8086Test().TestJump2();
+            return;
 
-            using (var disk = File.OpenRead("TestDisks/Dos6.22.img"))
-                cpu.AttachDevice(new RawDrive(disk, false, true, 512, 18, 80, 2));
+            InitCpu();
 
             if (SDL.SDL_Init(SDL.SDL_INIT_VIDEO) != 0)
                 throw new InvalidOperationException();
@@ -81,6 +82,14 @@ namespace Sharp8086.Emulator
             SDL.SDL_DestroyRenderer(renderer);
             SDL.SDL_DestroyWindow(window);
             SDL.SDL_Quit();
+        }
+        private static void InitCpu()
+        {
+            using (var file = File.OpenRead("bios"))
+                cpu = new Cpu8086(file, 1024 * 1024);
+
+            using (var disk = File.OpenRead("TestDisks/Dos6.22.img"))
+                cpu.AttachDevice(new RawDrive(disk, false, true, 512, 18, 80, 2));
         }
     }
 }

@@ -32,45 +32,53 @@ namespace Sharp8086.CPU
 {
     public sealed class Cpu8086 : ICpu, IInstructionFetcher
     {
-        public const int PAGE_SHIFT = 12;
+        public enum Register : uint
+        {
+            AX = 0,
+            CX = 1,
+            DX = 2,
+            BX = 3,
 
-        public const int AX = 0;
-        public const int CX = 1;
-        public const int DX = 2;
-        public const int BX = 3;
+            SP = 4,
+            BP = 5,
+            SI = 6,
+            DI = 7,
 
-        public const int SP = 4;
-        public const int BP = 5;
-        public const int SI = 6;
-        public const int DI = 7;
+            ES = 8,
+            CS = 9,
+            SS = 10,
+            DS = 11,
 
-        public const int ES = 8;
-        public const int CS = 9;
-        public const int SS = 10;
-        public const int DS = 11;
+            IP = 12,
+            FLAGS = 13,
 
-        public const int IP = 12;
-        public const int FLAGS = 13;
+            AL = 0x80000000 | 0,
+            CL = 0x80000000 | 1,
+            DL = 0x80000000 | 2,
+            BL = 0x80000000 | 3,
+            AH = 0x80000000 | 4,
+            CH = 0x80000000 | 5,
+            DH = 0x80000000 | 6,
+            BH = 0x80000000 | 7
+        }
 
-        public const int AL = 0xFFE0;
-        public const int CL = 0xFFE1;
-        public const int DL = 0xFFE2;
-        public const int BL = 0xFFE3;
-        public const int AH = 0xFFE4;
-        public const int CH = 0xFFE5;
-        public const int DH = 0xFFE6;
-        public const int BH = 0xFFE7;
+        [Flags]
+        public enum FlagsRegister : ushort
+        {
+            Carry = 1 << 0,
+            Parity = 1 << 2,
+            Adjust = 1 << 4,
+            Zero = 1 << 6,
+            Sign = 1 << 7,
+            Trap = 1 << 8,
+            Interrupt = 1 << 9,
+            Direction = 1 << 10,
+            Overflow = 1 << 11
+        }
 
-        private const int CF = 0;
-        private const int PF = 2;
-        private const int AF = 4;
-        private const int ZF = 6;
-        private const int SF = 7;
-        private const int TF = 8;
-        private const int IF = 9;
-        private const int DF = 10;
-        private const int OF = 11;
+        private delegate void InstructionDispatch(Cpu8086 cpu, OpCodeManager.Instruction instruction);
 
+        private const int PAGE_SHIFT = 12;
         private const int IO_PORT_OFFSET = 0xE0000;
         private const int IO_PORT_SIZE = 0x10000;
 
@@ -92,6 +100,113 @@ namespace Sharp8086.CPU
             false, true, true, false, true, false, false, true, true, false, false, true, false, true, true, false,
             false, true, true, false, true, false, false, true, true, false, false, true, false, true, true, false,
             true, false, false, true, false, true, true, false, false, true, true, false, true, false, false, true
+        };
+
+        private static readonly InstructionDispatch[] dispatches =
+        {
+            DispatchInvalid,
+
+            DispatchArithmetic,
+            (cpu, instruction) =>
+            {
+                if ((Register)instruction.Argument1 == Register.SP)
+                {
+                    // 8086 has a bug where it pushes SP after it has been modified
+                    cpu.registers[(int)Register.SP] -= 2;
+                    cpu.WriteU16(SegmentToAddress(cpu.GetRegister(Register.SS), cpu.GetRegister(Register.SP)), cpu.GetRegister(Register.SP));
+                }
+                else cpu.Push(cpu.registers[instruction.Argument1]);
+            },
+            (cpu, instruction) => cpu.registers[instruction.Argument1] = cpu.Pop(),
+            DispatchArithmetic,
+            DispatchArithmetic,
+            DispatchSbb,
+            DispatchArithmetic,
+            DispatchArithmetic,
+            DispatchArithmetic,
+            DispatchArithmetic,
+            DispatchInvalid,
+            DispatchDaa,
+            DispatchDas,
+            DispatchAaa,
+            DispatchAas,
+            DispatchUnaryArithmetic,
+            DispatchUnaryArithmetic,
+            DispatchJump,
+            DispatchFarJump,
+            DispatchInvalid,
+            DispatchArithmetic,
+            DispatchXchg,
+            DispatchMove,
+            DispatchLea,
+            DispatchNop,
+            DispatchCbw,
+            DispatchCwd,
+            DispatchCallNearRelative,
+            DispatchCallNear,
+            DispatchCallFar,
+            DispatchWait,
+            DispatchSahf,
+            DispatchLahf,
+            DispatchStringOperation,
+            DispatchStringOperation,
+            DispatchStringOperation,
+            DispatchStringOperation,
+            DispatchStringOperation,
+            DispatchReturnNear,
+            DispatchReturnFar,
+            (cpu, instruction) => DispatchLoadFarPointer(cpu, instruction, Register.ES),
+            (cpu, instruction) => DispatchLoadFarPointer(cpu, instruction, Register.DS),
+            DispatchInterrupt,
+            DispatchInto,
+            DispatchReturnInterrupt,
+            DispatchAam,
+            DispatchAad,
+            DispatchXlat,
+            DispatchLoopNotZero,
+            DispatchLoopZero,
+            DispatchLoop,
+            DispatchClc,
+            DispatchStc,
+            DispatchJcxz,
+            DispatchIn,
+            DispatchOut,
+            DispatchHalt,
+            DispatchCmc,
+            DispatchCli,
+            DispatchSti,
+            DispatchCld,
+            DispatchStd,
+            DispatchJumpIfOverflow,
+            DispatchJumpIfNotOverflow,
+            DispatchJumpIfCarry,
+            DispatchJumpIfNotCarry,
+            DispatchJumpIfZero,
+            DispatchJumpIfNotZero,
+            DispatchJBE,
+            DispatchJA,
+            DispatchJS,
+            DispatchJNS,
+            DispatchJPE,
+            DispatchJPO,
+            DispatchJL,
+            DispatchJGE,
+            DispatchJLE,
+            DispatchJG,
+            DispatchArithmetic,
+            DispatchArithmetic,
+            DispatchArithmetic,
+            DispatchRcr,
+            DispatchRcl,
+            DispatchArithmetic,
+            DispatchRol,
+            DispatchNot,
+            DispatchNegate,
+            DispatchMultiply,
+            DispatchIMultiply,
+            DispatchDivide,
+            DispatchIDivide,
+            DispatchEmulatorSpecial
         };
 
         private readonly IPageController[] pages;
@@ -124,260 +239,21 @@ namespace Sharp8086.CPU
                 throw new InvalidDataException();
             biosFile.Read(memory, 0xF0000, (int)biosFile.Length);
 
-            registers[CS] = 0xF000;
-            registers[IP] = 0xFFF0;
+            SetRegister(Register.CS, 0xF000);
+            SetRegister(Register.IP, 0xFFF0);
         }
 
         public bool ProcessInstruction()
         {
-            string instructionText = $"{registers[CS]:X4}:{registers[IP]:X4} ";
+            string instructionText = $"{GetRegister(Register.CS):X4}:{GetRegister(Register.IP):X4} ";
             var instruction = OpCodeManager.Decode(this);
             instructionText += OutputInstruction(instruction);
 
-            if (registers[CS] != 0xF000)
-                Console.WriteLine(instructionText);
+            //if (GetRegister(CS) != 0xF000)
+            Console.WriteLine(instructionText);
 
-            switch (instruction.Type)
-            {
-                case OpCodeManager.InstructionType.Clc:
-                    registers[FLAGS] = (ushort)(registers[FLAGS] & ~(1 << CF));
-                    break;
-                case OpCodeManager.InstructionType.Cld:
-                    registers[FLAGS] = (ushort)(registers[FLAGS] & ~(1 << DF));
-                    break;
-                case OpCodeManager.InstructionType.Cli:
-                    registers[FLAGS] = (ushort)(registers[FLAGS] & ~(1 << IF));
-                    break;
-                case OpCodeManager.InstructionType.Stc:
-                    registers[FLAGS] = (ushort)(registers[FLAGS] | (1 << CF));
-                    break;
-                case OpCodeManager.InstructionType.Sti:
-                    registers[FLAGS] = (ushort)(registers[FLAGS] | (1 << IF));
-                    break;
-                case OpCodeManager.InstructionType.JA:
-                    if (((registers[FLAGS] >> CF) & 1) == 0 && ((registers[FLAGS] >> ZF) & 1) == 0)
-                        registers[IP] = (ushort)(registers[IP] + instruction.Argument1Value);
-                    break;
-                case OpCodeManager.InstructionType.JB:
-                    if (((registers[FLAGS] >> CF) & 1) != 0)
-                        registers[IP] = (ushort)(registers[IP] + instruction.Argument1Value);
-                    break;
-                case OpCodeManager.InstructionType.JNB:
-                    if (((registers[FLAGS] >> CF) & 1) == 0)
-                        registers[IP] = (ushort)(registers[IP] + instruction.Argument1Value);
-                    break;
-                case OpCodeManager.InstructionType.JL:
-                    if (((registers[FLAGS] >> SF) & 1) != ((registers[FLAGS] >> OF) & 1))
-                        registers[IP] = (ushort)(registers[IP] + instruction.Argument1Value);
-                    break;
-                case OpCodeManager.InstructionType.JGE:
-                    if (((registers[FLAGS] >> SF) & 1) == ((registers[FLAGS] >> OF) & 1))
-                        registers[IP] = (ushort)(registers[IP] + instruction.Argument1Value);
-                    break;
-                case OpCodeManager.InstructionType.JNZ:
-                    if (((registers[FLAGS] >> ZF) & 1) == 0)
-                        registers[IP] = (ushort)(registers[IP] + instruction.Argument1Value);
-                    break;
-                case OpCodeManager.InstructionType.JZ:
-                    if (((registers[FLAGS] >> ZF) & 1) != 0)
-                        registers[IP] = (ushort)(registers[IP] + instruction.Argument1Value);
-                    break;
-                case OpCodeManager.InstructionType.Jump:
-                    Debug.Assert(instruction.Argument1 == OpCodeManager.ARG_CONSTANT);
-                    registers[IP] = (ushort)(registers[IP] + instruction.Argument1Value);
-                    break;
-                case OpCodeManager.InstructionType.FarJump:
-                    ProcessFarJump(instruction);
-                    break;
-                case OpCodeManager.InstructionType.Move:
-                    ProcessMov(instruction);
-                    break;
-                case OpCodeManager.InstructionType.Lea:
-                    ProcessLea(instruction);
-                    break;
-                case OpCodeManager.InstructionType.Lds:
-                    ProcessLoadFarPointer(DS, instruction);
-                    break;
-                case OpCodeManager.InstructionType.Les:
-                    ProcessLoadFarPointer(ES, instruction);
-                    break;
-                case OpCodeManager.InstructionType.Out:
-                    var port = GetInstructionValue(instruction.Flag, instruction.Prefix, instruction.Argument1, instruction.Argument1Value, instruction.Argument1Displacement);
-                    var value = GetInstructionValue(instruction.Flag, instruction.Prefix, instruction.Argument2, instruction.Argument2Value, instruction.Argument2Displacement);
-                    if (instruction.Flag.HasFlag(OpCodeManager.OpCodeFlag.Size8))
-                        WriteU8((uint)(IO_PORT_OFFSET + port), (byte)value);
-                    else WriteU16((uint)(IO_PORT_OFFSET + port), value);
-                    break;
-                case OpCodeManager.InstructionType.Pop:
-                    registers[instruction.Argument1] = Pop();
-                    break;
-                case OpCodeManager.InstructionType.Push:
-                    if (instruction.Argument1 == SP)
-                    {
-                        // 8086 has a bug where it pushes SP after it has been modified
-                        registers[SP] -= 2;
-                        WriteU16(SegmentToAddress(registers[SS], registers[SP]), registers[SP]);
-                    }
-                    else Push(registers[instruction.Argument1]);
-                    break;
-                case OpCodeManager.InstructionType.Cmps:
-                case OpCodeManager.InstructionType.Lods:
-                case OpCodeManager.InstructionType.Movs:
-                case OpCodeManager.InstructionType.Stos:
-                    ProcessStringOperation(instruction);
-                    break;
-                case OpCodeManager.InstructionType.Divide:
-                    ProcessDivide(instruction);
-                    break;
-                case OpCodeManager.InstructionType.Multiply:
-                    ProcessMultiply(instruction);
-                    break;
-                case OpCodeManager.InstructionType.Adc:
-                case OpCodeManager.InstructionType.Add:
-                case OpCodeManager.InstructionType.And:
-                case OpCodeManager.InstructionType.Compare:
-                case OpCodeManager.InstructionType.Or:
-                case OpCodeManager.InstructionType.Ror:
-                case OpCodeManager.InstructionType.Sar:
-                case OpCodeManager.InstructionType.Shl:
-                case OpCodeManager.InstructionType.Shr:
-                case OpCodeManager.InstructionType.Subtract:
-                case OpCodeManager.InstructionType.Test:
-                case OpCodeManager.InstructionType.Xor:
-                    ProcessArithmetic(instruction);
-                    break;
-                case OpCodeManager.InstructionType.Decrement:
-                case OpCodeManager.InstructionType.Increment:
-                    ProcessUnaryArithmetic(instruction);
-                    break;
-                case OpCodeManager.InstructionType.CallNearRelative:
-                    Debug.Assert(instruction.Argument1 == OpCodeManager.ARG_CONSTANT);
-                    Push(registers[IP]);
-                    registers[IP] = (ushort)(registers[IP] + instruction.Argument1Value);
-                    break;
-                case OpCodeManager.InstructionType.ReturnNear:
-                    registers[IP] = Pop();
-                    if (instruction.Argument1 == OpCodeManager.ARG_CONSTANT)
-                        registers[SP] = (ushort)(registers[SP] + instruction.Argument1Value);
-                    else Debug.Assert(instruction.Argument1 == OpCodeManager.ARG_NONE);
-                    break;
-                case OpCodeManager.InstructionType.ReturnInterrupt:
-                    registers[IP] = Pop();
-                    registers[CS] = Pop();
-                    registers[FLAGS] = Pop();
-                    break;
-                case OpCodeManager.InstructionType.Int:
-                    Debug.Assert(instruction.Argument1 == OpCodeManager.ARG_CONSTANT);
-
-                    if (instruction.Argument1Value == 3)
-                        Debugger.Break();
-
-                    Push(registers[FLAGS]);
-                    Push(registers[CS]);
-                    Push(registers[IP]);
-                    registers[CS] = ReadU16((uint)instruction.Argument1Value * 4 + 2);
-                    registers[IP] = ReadU16((uint)instruction.Argument1Value * 4);
-                    break;
-                case OpCodeManager.InstructionType.Xchg:
-                    ProcessExchange(instruction);
-                    break;
-                case OpCodeManager.InstructionType.Cbw:
-                    registers[AX] = (ushort)(sbyte)GetByteRegister(AL);
-                    break;
-                case OpCodeManager.InstructionType.EmulatorSpecial:
-                    Debug.Assert(instruction.Argument1 == OpCodeManager.ARG_CONSTANT);
-                    switch (instruction.Argument1Value)
-                    {
-                        case 0x02:
-                            ProcessReadDrive();
-                            break;
-                        default:
-                            throw new NotImplementedException();
-                    }
-                    break;
-                case OpCodeManager.InstructionType.Hlt:
-                    // Goes back one instruction so it halts again if process instruction is called
-                    --registers[IP];
-                    return false;
-                default:
-                    throw new NotImplementedException();
-            }
-            return true;
-        }
-        private void ProcessFarJump(OpCodeManager.Instruction instruction)
-        {
-            switch (instruction.Argument1)
-            {
-                case OpCodeManager.ARG_FAR_MEMORY:
-                    registers[CS] = (ushort)((uint)instruction.Argument1Value >> 16);
-                    registers[IP] = (ushort)(instruction.Argument1Value & 0xFFFF);
-                    break;
-
-                case OpCodeManager.ARG_MEMORY:
-                    var prefix = instruction.Prefix;
-                    if (prefix == 0) prefix = DS;
-                    var address = SegmentToAddress(registers[prefix], (ushort)instruction.Argument1Value);
-                    registers[CS] = ReadU16(address + 2);
-                    registers[IP] = ReadU16(address);
-                    break;
-
-                default:
-                    throw new NotImplementedException();
-            }
-        }
-        private void ProcessLoadFarPointer(int segmentRegister, OpCodeManager.Instruction instruction)
-        {
-            var prefix = instruction.Prefix;
-            if (prefix == 0) prefix = DS;
-            var address = SegmentToAddress(prefix, GetInstructionAddress(instruction.Argument2, instruction.Argument2Value, instruction.Argument2Displacement));
-            var memory = ReadU16(address);
-            var segment = ReadU16(address + 2);
-
-            registers[segmentRegister] = segment;
-            switch (instruction.Argument1)
-            {
-                case AX:
-                case CX:
-                case DX:
-                case BX:
-                case SP:
-                case BP:
-                case SI:
-                case DI:
-                case IP:
-                case CS:
-                case DS:
-                case ES:
-                case SS:
-                    registers[instruction.Argument1] = memory;
-                    break;
-
-                default:
-                    throw new NotImplementedException();
-            }
-        }
-        private void ProcessReadDrive()
-        {
-            var driveNumber = ReadU8(SegmentToAddress(registers[SS], (ushort)(registers[BP] - 1)));
-            var headNumber = ReadU8(SegmentToAddress(registers[SS], (ushort)(registers[BP] - 2)));
-            var cylinderNumber = ReadU16(SegmentToAddress(registers[SS], (ushort)(registers[BP] - 4)));
-            var sectorNumber = ReadU8(SegmentToAddress(registers[SS], (ushort)(registers[BP] - 5)));
-            var sectorsToRead = ReadU8(SegmentToAddress(registers[SS], (ushort)(registers[BP] - 6)));
-            var destinationSegment = ReadU16(SegmentToAddress(registers[SS], (ushort)(registers[BP] - 8)));
-            var destinationOffset = ReadU16(SegmentToAddress(registers[SS], (ushort)(registers[BP] - 10)));
-
-            var destination = SegmentToAddress(destinationSegment, destinationOffset);
-
-            if (drives[driveNumber] != null)
-            {
-                var drive = drives[driveNumber];
-                var driveOffset = headNumber * drive.NumberCylinders * drive.NumberSectors * drive.SectorSize;
-                driveOffset += cylinderNumber * drive.NumberSectors * drive.SectorSize;
-                driveOffset += (sectorNumber - 1) * drive.SectorSize;
-                WriteBytes(destination, drive.Read(driveOffset, sectorsToRead * drive.SectorSize));
-                registers[AX] = 0;
-            }
-            else registers[AX] = 1;
+            dispatches[(int)instruction.Type](this, instruction);
+            return instruction.Type != OpCodeManager.InstructionType.Hlt;
         }
         public void AttachDevice(IDevice device)
         {
@@ -422,123 +298,31 @@ namespace Sharp8086.CPU
             if (!hasUse)
                 throw new NotImplementedException();
         }
-        private void ProcessDivide(OpCodeManager.Instruction instruction)
-        {
-            uint value1;
-            if (instruction.Flag.HasFlag(OpCodeManager.OpCodeFlag.Size8))
-                value1 = registers[AX];
-            else value1 = (uint)registers[DX] << 16 | registers[AX];
-            var value2 = GetInstructionValue(instruction.Flag, instruction.Prefix, instruction.Argument1, instruction.Argument1Value, instruction.Argument1Displacement);
-
-            if (instruction.Flag.HasFlag(OpCodeManager.OpCodeFlag.Size8))
-                value2 &= 0xFF;
-
-            var quotient = value1 / value2;
-            if ((instruction.Flag.HasFlag(OpCodeManager.OpCodeFlag.Size8) && quotient > 0xFF) || (!instruction.Flag.HasFlag(OpCodeManager.OpCodeFlag.Size8) && quotient > 0xFFFF))
-                throw new NotImplementedException();
-
-            var remainder = value1 % value2;
-
-            if (instruction.Flag.HasFlag(OpCodeManager.OpCodeFlag.Size8))
-                registers[AX] = (ushort)((byte)quotient | ((remainder & 0xFF) << 8));
-            else
-            {
-                registers[AX] = (ushort)quotient;
-                registers[DX] = (ushort)remainder;
-            }
-        }
-        private void ProcessMultiply(OpCodeManager.Instruction instruction)
-        {
-            var value1 = registers[AX];
-            var value2 = GetInstructionValue(instruction.Flag, instruction.Prefix, instruction.Argument1, instruction.Argument1Value, instruction.Argument1Displacement);
-
-            if (instruction.Flag.HasFlag(OpCodeManager.OpCodeFlag.Size8))
-            {
-                value1 &= 0xFF;
-                value2 &= 0xFF;
-            }
-            var result = (uint)value1 * value2;
-
-            ushort truncResult;
-            bool carry;
-            bool sign;
-            if (instruction.Flag.HasFlag(OpCodeManager.OpCodeFlag.Size8))
-            {
-                truncResult = (byte)result;
-                carry = result > 0xFF;
-                sign = ((truncResult >> 7) & 1) == 1;
-            }
-            else
-            {
-                truncResult = (ushort)result;
-                carry = result > 0xFFFF;
-                sign = ((truncResult >> 15) & 1) == 1;
-            }
-            var auxiliary = ((value1 ^ value2 ^ truncResult) & 0x10) != 0;
-            var zero = truncResult == 0;
-            var parity = parityLookup[(byte)result];
-            var overflow = carry ^ sign;
-
-            registers[FLAGS] &= unchecked((ushort)~(ushort)((1u << CF) | (1u << PF) | (1u << AF) | (1u << ZF) | (1u << SF) | (1u << OF)));
-            registers[FLAGS] |= (ushort)(((carry ? 1 : 0) << CF) | ((parity ? 1 : 0) << PF) | ((auxiliary ? 1 : 0) << AF) | ((zero ? 1 : 0) << ZF) | ((sign ? 1 : 0) << SF) | ((overflow ? 1 : 0) << OF));
-
-            registers[AX] = (ushort)result;
-            if (!instruction.Flag.HasFlag(OpCodeManager.OpCodeFlag.Size8))
-                registers[DX] = (ushort)(result >> 16);
-        }
-        private void ProcessExchange(OpCodeManager.Instruction instruction)
-        {
-            switch (instruction.Argument1)
-            {
-                case AX:
-                case CX:
-                case DX:
-                case BX:
-                case SP:
-                case BP:
-                case SI:
-                case DI:
-                case IP:
-                case CS:
-                case DS:
-                case ES:
-                case SS:
-                    registers[instruction.Argument1] = ProcessExchangeSecond(instruction, registers[instruction.Argument1]);
-                    break;
-
-                case OpCodeManager.ARG_BYTE_REGISTER:
-                    SetByteRegister(instruction.Argument1Value, (byte)ProcessExchangeSecond(instruction, GetByteRegister(instruction.Argument1Value)));
-                    break;
-
-                default:
-                    throw new NotImplementedException();
-            }
-        }
         private ushort ProcessExchangeSecond(OpCodeManager.Instruction instruction, ushort value)
         {
             ushort tmp;
             switch (instruction.Argument2)
             {
-                case AX:
-                case CX:
-                case DX:
-                case BX:
-                case SP:
-                case BP:
-                case SI:
-                case DI:
-                case IP:
-                case CS:
-                case DS:
-                case ES:
-                case SS:
+                case (int)Register.AX:
+                case (int)Register.CX:
+                case (int)Register.DX:
+                case (int)Register.BX:
+                case (int)Register.SP:
+                case (int)Register.BP:
+                case (int)Register.SI:
+                case (int)Register.DI:
+                case (int)Register.IP:
+                case (int)Register.CS:
+                case (int)Register.DS:
+                case (int)Register.ES:
+                case (int)Register.SS:
                     tmp = registers[instruction.Argument2];
                     registers[instruction.Argument2] = value;
                     return tmp;
 
                 case OpCodeManager.ARG_BYTE_REGISTER:
-                    tmp = GetByteRegister(instruction.Argument2Value);
-                    SetByteRegister(instruction.Argument2Value, (byte)value);
+                    tmp = GetRegisterU8((Register)instruction.Argument2Value);
+                    SetRegisterU8((Register)instruction.Argument2Value, (byte)value);
                     return tmp;
 
                 default:
@@ -547,356 +331,285 @@ namespace Sharp8086.CPU
         }
         private void Push(ushort value)
         {
-            registers[SP] -= 2;
-            WriteU16(SegmentToAddress(registers[SS], registers[SP]), value);
+            registers[(int)Register.SP] -= 2;
+            WriteU16(SegmentToAddress(GetRegister(Register.SS), GetRegister(Register.SP)), value);
         }
         private ushort Pop()
         {
-            var value = ReadU16(SegmentToAddress(registers[SS], registers[SP]));
-            registers[SP] += 2;
+            var value = ReadU16(SegmentToAddress(GetRegister(Register.SS), GetRegister(Register.SP)));
+            registers[(int)Register.SP] += 2;
             return value;
         }
-        private void ProcessStringOperation(OpCodeManager.Instruction instruction)
+        private ushort GetInstructionAddress(int instruction, int instructionValue, int instructionDisplacement)
         {
-            int counter;
-            switch (instruction.Prefix)
+            switch (instruction)
             {
-                case 0:
-                    ProcessOneStringOperation(instruction);
-                    break;
-                case 0xF2:
-                    counter = registers[CX];
-                    while (counter != 0)
-                    {
-                        ProcessOneStringOperation(instruction);
-                        counter--;
-                        if (((registers[FLAGS] >> ZF) & 1) != 0)
-                            break;
-                    }
-                    break;
-                case 0xF3:
-                    counter = registers[CX];
-                    if (instruction.Type == OpCodeManager.InstructionType.Cmps || instruction.Type == OpCodeManager.InstructionType.Scas)
-                    {
-                        while (counter != 0)
-                        {
-                            ProcessOneStringOperation(instruction);
-                            counter--;
-                            if (((registers[FLAGS] >> ZF) & 1) == 0)
-                                break;
-                        }
-                    }
-                    else
-                    {
-                        while (counter != 0)
-                        {
-                            ProcessOneStringOperation(instruction);
-                            counter--;
-                        }
-                    }
-                    break;
-                default:
-                    throw new NotImplementedException();
-            }
-        }
-        private void ProcessOneStringOperation(OpCodeManager.Instruction instruction)
-        {
-            switch (instruction.Type)
-            {
-                case OpCodeManager.InstructionType.Cmps:
-                    ProcessCmps(instruction);
-                    break;
-                case OpCodeManager.InstructionType.Lods:
-                    ProcessLods(instruction);
-                    break;
-                case OpCodeManager.InstructionType.Movs:
-                    ProcessMovs(instruction);
-                    break;
-                case OpCodeManager.InstructionType.Stos:
-                    ProcessStos(instruction);
-                    break;
-                default:
-                    throw new NotImplementedException();
-            }
-        }
-        private void ProcessCmps(OpCodeManager.Instruction instruction)
-        {
-            ushort value1;
-            ushort value2;
-            byte size;
-            if (instruction.Flag.HasFlag(OpCodeManager.OpCodeFlag.Size8))
-            {
-                value1 = ReadU8(SegmentToAddress(registers[DS], registers[SI]));
-                value2 = ReadU8(SegmentToAddress(registers[ES], registers[DI]));
-                size = 1;
-            }
-            else
-            {
-                value1 = ReadU16(SegmentToAddress(registers[DS], registers[SI]));
-                value2 = ReadU16(SegmentToAddress(registers[ES], registers[DI]));
-                size = 2;
-            }
-            var result = value1 - value2;
-
-            ushort truncResult;
-            bool carry;
-            bool sign;
-            if (instruction.Flag.HasFlag(OpCodeManager.OpCodeFlag.Size8))
-            {
-                truncResult = (byte)result;
-                carry = (uint)result > 0xFF;
-                sign = ((truncResult >> 7) & 1) == 1;
-            }
-            else
-            {
-                truncResult = (ushort)result;
-                carry = (uint)result > 0xFFFF;
-                sign = ((truncResult >> 15) & 1) == 1;
-            }
-            var auxiliary = ((value1 ^ value2 ^ truncResult) & 0x10) != 0;
-            var zero = truncResult == 0;
-            var parity = parityLookup[(byte)result];
-            var overflow = carry ^ sign;
-
-            registers[FLAGS] &= unchecked((ushort)~(ushort)((1u << CF) | (1u << PF) | (1u << AF) | (1u << ZF) | (1u << SF) | (1u << OF)));
-            registers[FLAGS] |= (ushort)(((carry ? 1 : 0) << CF) | ((parity ? 1 : 0) << PF) | ((auxiliary ? 1 : 0) << AF) | ((zero ? 1 : 0) << ZF) | ((sign ? 1 : 0) << SF) | ((overflow ? 1 : 0) << OF));
-
-            if ((registers[FLAGS] & (1 << DF)) == 0)
-            {
-                registers[DI] += size;
-                registers[SI] += size;
-            }
-            else
-            {
-                registers[DI] -= size;
-                registers[SI] -= size;
-            }
-        }
-        private void ProcessStos(OpCodeManager.Instruction instruction)
-        {
-            byte size;
-            if (instruction.Flag.HasFlag(OpCodeManager.OpCodeFlag.Size8))
-            {
-                WriteU8(SegmentToAddress(registers[ES], registers[DI]), (byte)(registers[AX] & 0xFF));
-                size = 1;
-            }
-            else
-            {
-                WriteU16(SegmentToAddress(registers[ES], registers[DI]), registers[AX]);
-                size = 2;
-            }
-
-            if ((registers[FLAGS] & (1 << DF)) == 0)
-                registers[DI] += size;
-            else registers[DI] -= size;
-        }
-        private void ProcessLods(OpCodeManager.Instruction instruction)
-        {
-            int prefix = instruction.Prefix;
-            if (prefix == 0) prefix = DS;
-            var sourceAddress = SegmentToAddress(registers[prefix], registers[SI]);
-
-            byte size;
-            if (instruction.Flag.HasFlag(OpCodeManager.OpCodeFlag.Size8))
-            {
-                var value = ReadU8(sourceAddress);
-                SetByteRegister(AL, value);
-                size = 1;
-            }
-            else
-            {
-                var value = ReadU16(sourceAddress);
-                registers[AX] = value;
-                size = 2;
-            }
-
-            if ((registers[FLAGS] & (1 << DF)) == 0)
-            {
-                registers[DI] += size;
-                registers[SI] += size;
-            }
-            else
-            {
-                registers[DI] -= size;
-                registers[SI] -= size;
-            }
-        }
-        private void ProcessMovs(OpCodeManager.Instruction instruction)
-        {
-            var sourceAddress = SegmentToAddress(registers[DS], registers[SI]);
-            var destAddress = SegmentToAddress(registers[ES], registers[DI]);
-            byte size;
-            if (instruction.Flag.HasFlag(OpCodeManager.OpCodeFlag.Size8))
-            {
-                var value = ReadU8(sourceAddress);
-                WriteU8(destAddress, value);
-                size = 1;
-            }
-            else
-            {
-                var value = ReadU16(sourceAddress);
-                WriteU16(destAddress, value);
-                size = 2;
-            }
-
-            if ((registers[FLAGS] & (1 << DF)) == 0)
-            {
-                registers[DI] += size;
-                registers[SI] += size;
-            }
-            else
-            {
-                registers[DI] -= size;
-                registers[SI] -= size;
-            }
-        }
-        private void ProcessUnaryArithmetic(OpCodeManager.Instruction instruction)
-        {
-            ushort value;
-            int result;
-
-            switch (instruction.Argument1)
-            {
-                case AX:
-                case CX:
-                case DX:
-                case BX:
-                case SP:
-                case BP:
-                case SI:
-                case DI:
-                case IP:
-                case CS:
-                case DS:
-                case ES:
-                case SS:
-                    value = registers[instruction.Argument1];
-                    if (instruction.Type == OpCodeManager.InstructionType.Decrement)
-                        result = (ushort)(value - 1u);
-                    else result = (ushort)(value + 1);
-                    registers[instruction.Argument1] = (ushort)result;
-                    break;
-
-                case OpCodeManager.ARG_BYTE_REGISTER:
-                    value = GetByteRegister(instruction.Argument1Value);
-
-                    if (instruction.Type == OpCodeManager.InstructionType.Decrement)
-                        result = (ushort)(value - 1u);
-                    else result = (ushort)(value + 1);
-
-                    SetByteRegister(instruction.Argument1Value, (byte)result);
-                    break;
-
-                case OpCodeManager.ARG_MEMORY:
-                    var segment = instruction.Prefix;
-                    if (segment == 0) segment = DS;
-                    var address = SegmentToAddress(registers[segment], (ushort)instruction.Argument1Value);
-                    value = instruction.Flag.HasFlag(OpCodeManager.OpCodeFlag.Size8) ? ReadU8(address) : ReadU16(address);
-                    if (instruction.Type == OpCodeManager.InstructionType.Decrement)
-                        result = (ushort)(value - 1u);
-                    else result = (ushort)(value + 1);
-                    if (instruction.Flag.HasFlag(OpCodeManager.OpCodeFlag.Size8))
-                        WriteU8(address, (byte)result);
-                    else WriteU16(address, (ushort)result);
-                    break;
-
-                default:
-                    throw new NotImplementedException();
-            }
-
-            ushort truncResult;
-            bool carry;
-            bool sign;
-            if (instruction.Flag.HasFlag(OpCodeManager.OpCodeFlag.Size8))
-            {
-                truncResult = (byte)result;
-                carry = (uint)result > 0xFF;
-                sign = ((truncResult >> 7) & 1) == 1;
-            }
-            else
-            {
-                truncResult = (ushort)result;
-                carry = (uint)result > 0xFFFF;
-                sign = ((truncResult >> 15) & 1) == 1;
-            }
-            var auxiliary = ((value ^ 1 ^ truncResult) & 0x10) != 0;
-            var zero = truncResult == 0;
-            var parity = parityLookup[(byte)result];
-            var overflow = carry ^ sign;
-
-            registers[FLAGS] &= unchecked((ushort)~(ushort)((1u << PF) | (1u << AF) | (1u << ZF) | (1u << SF) | (1u << OF)));
-            registers[FLAGS] |= (ushort)(((parity ? 1 : 0) << PF) | ((auxiliary ? 1 : 0) << AF) | ((zero ? 1 : 0) << ZF) | ((sign ? 1 : 0) << SF) | ((overflow ? 1 : 0) << OF));
-        }
-        private void ProcessArithmetic(OpCodeManager.Instruction instruction)
-        {
-            ushort value1;
-            var value2 = GetInstructionValue(instruction.Flag, instruction.Prefix, instruction.Argument2, instruction.Argument2Value, instruction.Argument2Displacement);
-
-            byte segment;
-            uint address;
-            switch (instruction.Argument1)
-            {
-                case AX:
-                case CX:
-                case DX:
-                case BX:
-                case SP:
-                case BP:
-                case SI:
-                case DI:
-                case IP:
-                case CS:
-                case DS:
-                case ES:
-                case SS:
-                    value1 = registers[instruction.Argument1];
-                    break;
-
-                case OpCodeManager.ARG_BYTE_REGISTER:
-                    value1 = GetByteRegister(instruction.Argument1Value);
-                    break;
-
                 case OpCodeManager.ARG_DEREFERENCE:
-                    segment = instruction.Prefix;
-                    if (segment == 0) segment = DS;
-                    switch (instruction.Argument1Value)
+                    ushort address;
+                    switch (instructionValue)
                     {
                         case 0:
-                            address = (uint)registers[BX] + registers[SI];
+                            address = (ushort)(GetRegister(Register.BX) + GetRegister(Register.SI));
                             break;
                         case 1:
-                            address = (uint)registers[BX] + registers[DI];
+                            address = (ushort)(GetRegister(Register.BX) + GetRegister(Register.DI));
                             break;
                         case 2:
-                            address = (uint)registers[BP] + registers[SI];
+                            address = (ushort)(GetRegister(Register.BP) + GetRegister(Register.SI));
                             break;
                         case 3:
-                            address = (uint)registers[BP] + registers[DI];
+                            address = (ushort)(GetRegister(Register.BP) + GetRegister(Register.DI));
                             break;
                         case 4:
-                            address = registers[SI];
+                            address = GetRegister(Register.SI);
                             break;
                         case 5:
-                            address = registers[DI];
+                            address = GetRegister(Register.DI);
                             break;
                         case 6:
-                            address = registers[BP];
+                            address = GetRegister(Register.BP);
                             break;
                         case 7:
-                            address = registers[BX];
+                            address = GetRegister(Register.BX);
                             break;
                         default:
                             throw new NotImplementedException();
                     }
-                    address = SegmentToAddress(registers[segment], (ushort)((ushort)address + instruction.Argument1Displacement));
-                    value1 = instruction.Flag.HasFlag(OpCodeManager.OpCodeFlag.Size8) ? ReadU8(address) : ReadU16(address);
+                    return (ushort)(address + instructionDisplacement);
+
+                case OpCodeManager.ARG_MEMORY:
+                    return (ushort)instructionValue;
+
+                default:
+                    throw new NotImplementedException();
+            }
+        }
+        private ushort GetInstructionValue(OpCodeManager.OpCodeFlag flag, byte prefix, int instruction, int instructionValue, int instructionDisplacement)
+        {
+            Register segment;
+            uint address;
+            switch (instruction)
+            {
+                case (int)Register.AX:
+                case (int)Register.CX:
+                case (int)Register.DX:
+                case (int)Register.BX:
+                case (int)Register.SP:
+                case (int)Register.BP:
+                case (int)Register.SI:
+                case (int)Register.DI:
+                case (int)Register.IP:
+                case (int)Register.CS:
+                case (int)Register.DS:
+                case (int)Register.ES:
+                case (int)Register.SS:
+                    return GetRegister((Register)instruction);
+
+                case OpCodeManager.ARG_BYTE_REGISTER:
+                    return GetRegisterU8((Register)instructionValue);
+
+                case OpCodeManager.ARG_DEREFERENCE:
+                    segment = (Register)prefix;
+                    if (segment == 0) segment = Register.DS;
+                    switch (instructionValue)
+                    {
+                        case 0:
+                            address = (uint)GetRegister(Register.BX) + GetRegister(Register.SI);
+                            break;
+                        case 1:
+                            address = (uint)GetRegister(Register.BX) + GetRegister(Register.DI);
+                            break;
+                        case 2:
+                            address = (uint)GetRegister(Register.BP) + GetRegister(Register.SI);
+                            break;
+                        case 3:
+                            address = (uint)GetRegister(Register.BP) + GetRegister(Register.DI);
+                            break;
+                        case 4:
+                            address = GetRegister(Register.SI);
+                            break;
+                        case 5:
+                            address = GetRegister(Register.DI);
+                            break;
+                        case 6:
+                            address = GetRegister(Register.BP);
+                            break;
+                        case 7:
+                            address = GetRegister(Register.BX);
+                            break;
+                        default:
+                            throw new NotImplementedException();
+                    }
+                    address = SegmentToAddress(GetRegister(segment), (ushort)((ushort)address + instructionDisplacement));
+                    return flag.HasFlag(OpCodeManager.OpCodeFlag.Size8) ? ReadU8(address) : ReadU16(address);
+
+                case OpCodeManager.ARG_MEMORY:
+                    segment = (Register)prefix;
+                    if (segment == 0) segment = Register.DS;
+                    address = SegmentToAddress(GetRegister(segment), (ushort)instructionValue);
+                    return flag.HasFlag(OpCodeManager.OpCodeFlag.Size8) ? ReadU8(address) : ReadU16(address);
+
+                case OpCodeManager.ARG_CONSTANT:
+                    return (ushort)instructionValue;
+
+                default:
+                    throw new NotImplementedException();
+            }
+        }
+
+        private static void DispatchInvalid(Cpu8086 cpu, OpCodeManager.Instruction instruction)
+        {
+            throw new NotImplementedException();
+        }
+        private static void DispatchMove(Cpu8086 cpu, OpCodeManager.Instruction instruction)
+        {
+            var value = cpu.GetInstructionValue(instruction.Flag, instruction.Prefix, instruction.Argument2, instruction.Argument2Value, instruction.Argument2Displacement);
+
+            Register segment;
+            uint address;
+            switch (instruction.Argument1)
+            {
+                case (int)Register.AX:
+                case (int)Register.CX:
+                case (int)Register.DX:
+                case (int)Register.BX:
+                case (int)Register.SP:
+                case (int)Register.BP:
+                case (int)Register.SI:
+                case (int)Register.DI:
+                case (int)Register.IP:
+                case (int)Register.CS:
+                case (int)Register.DS:
+                case (int)Register.ES:
+                case (int)Register.SS:
+                    cpu.registers[instruction.Argument1] = value;
+                    break;
+
+                case OpCodeManager.ARG_BYTE_REGISTER:
+                    cpu.SetRegisterU8((Register)instruction.Argument1Value, (byte)value);
+                    break;
+
+                case OpCodeManager.ARG_DEREFERENCE:
+                    segment = (Register)instruction.Prefix;
+                    if (segment == 0) segment = Register.DS;
+                    switch (instruction.Argument1Value)
+                    {
+                        case 0:
+                            address = (uint)cpu.GetRegister(Register.BX) + cpu.GetRegister(Register.SI);
+                            break;
+                        case 1:
+                            address = (uint)cpu.GetRegister(Register.BX) + cpu.GetRegister(Register.DI);
+                            break;
+                        case 2:
+                            address = (uint)cpu.GetRegister(Register.BP) + cpu.GetRegister(Register.SI);
+                            break;
+                        case 3:
+                            address = (uint)cpu.GetRegister(Register.BP) + cpu.GetRegister(Register.DI);
+                            break;
+                        case 4:
+                            address = cpu.GetRegister(Register.SI);
+                            break;
+                        case 5:
+                            address = cpu.GetRegister(Register.DI);
+                            break;
+                        case 6:
+                            address = cpu.GetRegister(Register.BP);
+                            break;
+                        case 7:
+                            address = cpu.GetRegister(Register.BX);
+                            break;
+                        default:
+                            throw new NotImplementedException();
+                    }
+                    address = SegmentToAddress(cpu.GetRegister(segment), (ushort)((ushort)address + instruction.Argument1Displacement));
+                    if (instruction.Flag.HasFlag(OpCodeManager.OpCodeFlag.Size8))
+                        cpu.WriteU8(address, (byte)value);
+                    else cpu.WriteU16(address, value);
                     break;
 
                 case OpCodeManager.ARG_MEMORY:
-                    segment = instruction.Prefix;
-                    if (segment == 0) segment = DS;
-                    address = SegmentToAddress(registers[segment], (ushort)instruction.Argument1Value);
-                    value1 = instruction.Flag.HasFlag(OpCodeManager.OpCodeFlag.Size8) ? ReadU8(address) : ReadU16(address);
+                    segment = (Register)instruction.Prefix;
+                    if (segment == 0) segment = Register.DS;
+                    address = SegmentToAddress(cpu.GetRegister(segment), (ushort)instruction.Argument1Value);
+                    if (instruction.Flag.HasFlag(OpCodeManager.OpCodeFlag.Size8))
+                        cpu.WriteU8(address, (byte)value);
+                    else cpu.WriteU16(address, value);
+                    break;
+
+                default:
+                    throw new NotImplementedException();
+            }
+        }
+        private static void DispatchArithmetic(Cpu8086 cpu, OpCodeManager.Instruction instruction)
+        {
+            ushort value1;
+            var value2 = cpu.GetInstructionValue(instruction.Flag, instruction.Prefix, instruction.Argument2, instruction.Argument2Value, instruction.Argument2Displacement);
+
+            Register segment;
+            uint address;
+            switch (instruction.Argument1)
+            {
+                case (int)Register.AX:
+                case (int)Register.CX:
+                case (int)Register.DX:
+                case (int)Register.BX:
+                case (int)Register.SP:
+                case (int)Register.BP:
+                case (int)Register.SI:
+                case (int)Register.DI:
+                case (int)Register.IP:
+                case (int)Register.CS:
+                case (int)Register.DS:
+                case (int)Register.ES:
+                case (int)Register.SS:
+                    value1 = cpu.registers[instruction.Argument1];
+                    break;
+
+                case OpCodeManager.ARG_BYTE_REGISTER:
+                    value1 = cpu.GetRegisterU8((Register)instruction.Argument1Value);
+                    break;
+
+                case OpCodeManager.ARG_DEREFERENCE:
+                    segment = (Register)instruction.Prefix;
+                    if (segment == 0) segment = Register.DS;
+                    switch (instruction.Argument1Value)
+                    {
+                        case 0:
+                            address = (uint)cpu.GetRegister(Register.BX) + cpu.GetRegister(Register.SI);
+                            break;
+                        case 1:
+                            address = (uint)cpu.GetRegister(Register.BX) + cpu.GetRegister(Register.DI);
+                            break;
+                        case 2:
+                            address = (uint)cpu.GetRegister(Register.BP) + cpu.GetRegister(Register.SI);
+                            break;
+                        case 3:
+                            address = (uint)cpu.GetRegister(Register.BP) + cpu.GetRegister(Register.DI);
+                            break;
+                        case 4:
+                            address = cpu.GetRegister(Register.SI);
+                            break;
+                        case 5:
+                            address = cpu.GetRegister(Register.DI);
+                            break;
+                        case 6:
+                            address = cpu.GetRegister(Register.BP);
+                            break;
+                        case 7:
+                            address = cpu.GetRegister(Register.BX);
+                            break;
+                        default:
+                            throw new NotImplementedException();
+                    }
+                    address = SegmentToAddress(cpu.GetRegister(segment), (ushort)((ushort)address + instruction.Argument1Displacement));
+                    value1 = instruction.Flag.HasFlag(OpCodeManager.OpCodeFlag.Size8) ? cpu.ReadU8(address) : cpu.ReadU16(address);
+                    break;
+
+                case OpCodeManager.ARG_MEMORY:
+                    segment = (Register)instruction.Prefix;
+                    if (segment == 0) segment = Register.DS;
+                    address = SegmentToAddress(cpu.GetRegister(segment), (ushort)instruction.Argument1Value);
+                    value1 = instruction.Flag.HasFlag(OpCodeManager.OpCodeFlag.Size8) ? cpu.ReadU8(address) : cpu.ReadU16(address);
                     break;
 
                 default:
@@ -916,7 +629,7 @@ namespace Sharp8086.CPU
                 switch (instruction.Type)
                 {
                     case OpCodeManager.InstructionType.Adc:
-                        result = value1 + value3 + ((registers[FLAGS] >> CF) & 1);
+                        result = value1 + value3 + (cpu.GetFlags().HasFlag(FlagsRegister.Carry) ? 1 : 0);
                         break;
 
                     case OpCodeManager.InstructionType.Add:
@@ -937,7 +650,7 @@ namespace Sharp8086.CPU
                 switch (instruction.Type)
                 {
                     case OpCodeManager.InstructionType.Adc:
-                        result = value1 + value2 + ((registers[FLAGS] >> CF) & 1);
+                        result = value1 + value2 + (cpu.GetFlags().HasFlag(FlagsRegister.Carry) ? 1 : 0);
                         break;
 
                     case OpCodeManager.InstructionType.Add:
@@ -1010,78 +723,85 @@ namespace Sharp8086.CPU
             var parity = parityLookup[(byte)result];
             var overflow = carry ^ sign;
 
-            registers[FLAGS] &= unchecked((ushort)~(ushort)((1u << CF) | (1u << PF) | (1u << AF) | (1u << ZF) | (1u << SF) | (1u << OF)));
-            registers[FLAGS] |= (ushort)(((carry ? 1 : 0) << CF) | ((parity ? 1 : 0) << PF) | ((auxiliary ? 1 : 0) << AF) | ((zero ? 1 : 0) << ZF) | ((sign ? 1 : 0) << SF) | ((overflow ? 1 : 0) << OF));
+            var flags = cpu.GetFlags();
+            flags &= ~(FlagsRegister.Carry | FlagsRegister.Parity | FlagsRegister.Adjust | FlagsRegister.Zero | FlagsRegister.Sign | FlagsRegister.Overflow);
+            flags |= (carry ? FlagsRegister.Carry : 0) |
+                     (parity ? FlagsRegister.Parity : 0) |
+                     (auxiliary ? FlagsRegister.Adjust : 0) |
+                     (zero ? FlagsRegister.Zero : 0) |
+                     (sign ? FlagsRegister.Sign : 0) |
+                     (overflow ? FlagsRegister.Overflow : 0);
+            cpu.SetFlags(flags);
 
             if (instruction.Type != OpCodeManager.InstructionType.Compare && instruction.Type != OpCodeManager.InstructionType.Test)
             {
                 switch (instruction.Argument1)
                 {
-                    case AX:
-                    case CX:
-                    case DX:
-                    case BX:
-                    case SP:
-                    case BP:
-                    case SI:
-                    case DI:
-                    case IP:
-                    case CS:
-                    case DS:
-                    case ES:
-                    case SS:
-                        registers[instruction.Argument1] = truncResult;
+                    case (int)Register.AX:
+                    case (int)Register.CX:
+                    case (int)Register.DX:
+                    case (int)Register.BX:
+                    case (int)Register.SP:
+                    case (int)Register.BP:
+                    case (int)Register.SI:
+                    case (int)Register.DI:
+                    case (int)Register.IP:
+                    case (int)Register.CS:
+                    case (int)Register.DS:
+                    case (int)Register.ES:
+                    case (int)Register.SS:
+                        cpu.registers[instruction.Argument1] = truncResult;
                         break;
 
                     case OpCodeManager.ARG_BYTE_REGISTER:
-                        SetByteRegister(instruction.Argument1Value, (byte)truncResult);
+                        cpu.SetRegisterU8((Register)instruction.Argument1Value, (byte)truncResult);
                         break;
 
                     case OpCodeManager.ARG_DEREFERENCE:
-                        segment = instruction.Prefix;
-                        if (segment == 0) segment = DS;
+                        segment = (Register)instruction.Prefix;
+                        if (segment == 0) segment = Register.DS;
                         switch (instruction.Argument1Value)
                         {
                             case 0:
-                                address = (uint)registers[BX] + registers[SI];
+                                address = (uint)cpu.GetRegister(Register.BX) + cpu.GetRegister(Register.SI);
                                 break;
                             case 1:
-                                address = (uint)registers[BX] + registers[DI];
+                                address = (uint)cpu.GetRegister(Register.BX) + cpu.GetRegister(Register.DI);
                                 break;
                             case 2:
-                                address = (uint)registers[BP] + registers[SI];
+                                address = (uint)cpu.GetRegister(Register.BP) + cpu.GetRegister(Register.SI);
                                 break;
                             case 3:
-                                address = (uint)registers[BP] + registers[DI];
+                                address = (uint)cpu.GetRegister(Register.BP) + cpu.GetRegister(Register.DI);
                                 break;
                             case 4:
-                                address = registers[SI];
+                                address = cpu.GetRegister(Register.SI);
                                 break;
                             case 5:
-                                address = registers[DI];
+                                address = cpu.GetRegister(Register.DI);
                                 break;
                             case 6:
-                                address = registers[BP];
+                                address = cpu.GetRegister(Register.BP);
                                 break;
                             case 7:
-                                address = registers[BX];
+                                address = cpu.GetRegister(Register.BX);
                                 break;
                             default:
                                 throw new NotImplementedException();
                         }
-                        address = SegmentToAddress(registers[segment], (ushort)((ushort)address + instruction.Argument1Displacement));
+                        address = SegmentToAddress(cpu.GetRegister(segment), (ushort)((ushort)address + instruction.Argument1Displacement));
                         if (instruction.Flag.HasFlag(OpCodeManager.OpCodeFlag.Size8))
-                            WriteU8(address, (byte)truncResult);
-                        else WriteU16(address, truncResult);
+                            cpu.WriteU8(address, (byte)truncResult);
+                        else cpu.WriteU16(address, truncResult);
                         break;
 
                     case OpCodeManager.ARG_MEMORY:
-                        segment = instruction.Prefix;
-                        if (segment == 0) segment = DS;
-                        address = SegmentToAddress(registers[segment], (ushort)instruction.Argument1Value);
+                        segment = (Register)instruction.Prefix;
+                        if (segment == 0) segment = Register.DS;
+                        address = SegmentToAddress(cpu.GetRegister(segment), (ushort)instruction.Argument1Value);
                         if (instruction.Flag.HasFlag(OpCodeManager.OpCodeFlag.Size8))
-                            WriteU8(address, (byte)truncResult);
-                        else WriteU16(address, truncResult);
+                            cpu.WriteU8(address, (byte)truncResult);
+                        else cpu.WriteU16(address, truncResult);
                         break;
 
                     default:
@@ -1089,226 +809,864 @@ namespace Sharp8086.CPU
                 }
             }
         }
-        private void ProcessLea(OpCodeManager.Instruction instruction)
+        private static void DispatchUnaryArithmetic(Cpu8086 cpu, OpCodeManager.Instruction instruction)
         {
-            var address = GetInstructionAddress(instruction.Argument2, instruction.Argument2Value, instruction.Argument2Displacement);
+            ushort value;
+            int result;
 
             switch (instruction.Argument1)
             {
-                case AX:
-                case CX:
-                case DX:
-                case BX:
-                case SP:
-                case BP:
-                case SI:
-                case DI:
-                case IP:
-                case CS:
-                case DS:
-                case ES:
-                case SS:
-                    registers[instruction.Argument1] = address;
+                case (int)Register.AX:
+                case (int)Register.CX:
+                case (int)Register.DX:
+                case (int)Register.BX:
+                case (int)Register.SP:
+                case (int)Register.BP:
+                case (int)Register.SI:
+                case (int)Register.DI:
+                case (int)Register.IP:
+                case (int)Register.CS:
+                case (int)Register.DS:
+                case (int)Register.ES:
+                case (int)Register.SS:
+                    value = cpu.registers[instruction.Argument1];
+                    if (instruction.Type == OpCodeManager.InstructionType.Decrement)
+                        result = (ushort)(value - 1u);
+                    else result = (ushort)(value + 1);
+                    cpu.registers[instruction.Argument1] = (ushort)result;
+                    break;
+
+                case OpCodeManager.ARG_BYTE_REGISTER:
+                    value = cpu.GetRegisterU8((Register)instruction.Argument1Value);
+
+                    if (instruction.Type == OpCodeManager.InstructionType.Decrement)
+                        result = (ushort)(value - 1u);
+                    else result = (ushort)(value + 1);
+
+                    cpu.SetRegisterU8((Register)instruction.Argument1Value, (byte)result);
+                    break;
+
+                case OpCodeManager.ARG_MEMORY:
+                    var segment = (Register)instruction.Prefix;
+                    if (segment == 0) segment = Register.DS;
+                    var address = SegmentToAddress(cpu.GetRegister(segment), (ushort)instruction.Argument1Value);
+                    value = instruction.Flag.HasFlag(OpCodeManager.OpCodeFlag.Size8) ? cpu.ReadU8(address) : cpu.ReadU16(address);
+                    if (instruction.Type == OpCodeManager.InstructionType.Decrement)
+                        result = (ushort)(value - 1u);
+                    else result = (ushort)(value + 1);
+                    if (instruction.Flag.HasFlag(OpCodeManager.OpCodeFlag.Size8))
+                        cpu.WriteU8(address, (byte)result);
+                    else cpu.WriteU16(address, (ushort)result);
+                    break;
+
+                default:
+                    throw new NotImplementedException();
+            }
+
+            ushort truncResult;
+            bool carry;
+            bool sign;
+            if (instruction.Flag.HasFlag(OpCodeManager.OpCodeFlag.Size8))
+            {
+                truncResult = (byte)result;
+                carry = (uint)result > 0xFF;
+                sign = ((truncResult >> 7) & 1) == 1;
+            }
+            else
+            {
+                truncResult = (ushort)result;
+                carry = (uint)result > 0xFFFF;
+                sign = ((truncResult >> 15) & 1) == 1;
+            }
+            var auxiliary = ((value ^ 1 ^ truncResult) & 0x10) != 0;
+            var zero = truncResult == 0;
+            var parity = parityLookup[(byte)result];
+            var overflow = carry ^ sign;
+
+            var flags = cpu.GetFlags();
+            flags &= ~(FlagsRegister.Carry | FlagsRegister.Parity | FlagsRegister.Adjust | FlagsRegister.Zero | FlagsRegister.Sign | FlagsRegister.Overflow);
+            flags |= (carry ? FlagsRegister.Carry : 0) |
+                     (parity ? FlagsRegister.Parity : 0) |
+                     (auxiliary ? FlagsRegister.Adjust : 0) |
+                     (zero ? FlagsRegister.Zero : 0) |
+                     (sign ? FlagsRegister.Sign : 0) |
+                     (overflow ? FlagsRegister.Overflow : 0);
+            cpu.SetFlags(flags);
+        }
+        private static void DispatchCbw(Cpu8086 cpu, OpCodeManager.Instruction instruction) =>
+            cpu.SetRegister(Register.AX, (ushort)(sbyte)cpu.GetRegisterU8(Register.AL));
+        private static void DispatchLea(Cpu8086 cpu, OpCodeManager.Instruction instruction)
+        {
+            var address = cpu.GetInstructionAddress(instruction.Argument2, instruction.Argument2Value, instruction.Argument2Displacement);
+
+            switch ((Register)instruction.Argument1)
+            {
+                case Register.AX:
+                case Register.CX:
+                case Register.DX:
+                case Register.BX:
+                case Register.SP:
+                case Register.BP:
+                case Register.SI:
+                case Register.DI:
+                case Register.IP:
+                case Register.CS:
+                case Register.DS:
+                case Register.ES:
+                case Register.SS:
+                    cpu.registers[instruction.Argument1] = address;
                     break;
 
                 default:
                     throw new NotImplementedException();
             }
         }
-        private void ProcessMov(OpCodeManager.Instruction instruction)
+        private static void DispatchXchg(Cpu8086 cpu, OpCodeManager.Instruction instruction)
         {
-            var value = GetInstructionValue(instruction.Flag, instruction.Prefix, instruction.Argument2, instruction.Argument2Value, instruction.Argument2Displacement);
-
-            byte segment;
-            uint address;
             switch (instruction.Argument1)
             {
-                case AX:
-                case CX:
-                case DX:
-                case BX:
-                case SP:
-                case BP:
-                case SI:
-                case DI:
-                case IP:
-                case CS:
-                case DS:
-                case ES:
-                case SS:
-                    registers[instruction.Argument1] = value;
+                case (int)Register.AX:
+                case (int)Register.CX:
+                case (int)Register.DX:
+                case (int)Register.BX:
+                case (int)Register.SP:
+                case (int)Register.BP:
+                case (int)Register.SI:
+                case (int)Register.DI:
+                case (int)Register.IP:
+                case (int)Register.CS:
+                case (int)Register.DS:
+                case (int)Register.ES:
+                case (int)Register.SS:
+                    cpu.registers[instruction.Argument1] = cpu.ProcessExchangeSecond(instruction, cpu.registers[instruction.Argument1]);
                     break;
 
                 case OpCodeManager.ARG_BYTE_REGISTER:
-                    SetByteRegister(instruction.Argument1Value, (byte)value);
+                    cpu.SetRegister((Register)instruction.Argument1Value, (byte)cpu.ProcessExchangeSecond(instruction, cpu.GetRegisterU8((Register)instruction.Argument1Value)));
+                    break;
+
+                default:
+                    throw new NotImplementedException();
+            }
+        }
+        private static void DispatchFarJump(Cpu8086 cpu, OpCodeManager.Instruction instruction)
+        {
+            Register segment;
+            switch (instruction.Argument1)
+            {
+                case OpCodeManager.ARG_FAR_MEMORY:
+                    cpu.SetRegister(Register.CS, (ushort)((uint)instruction.Argument1Value >> 16));
+                    cpu.SetRegister(Register.IP, (ushort)(instruction.Argument1Value & 0xFFFF));
+                    break;
+
+                case OpCodeManager.ARG_MEMORY:
+                    segment = (Register)instruction.Prefix;
+                    if (segment == 0) segment = Register.DS;
+                    var address = SegmentToAddress(cpu.GetRegister(segment), (ushort)instruction.Argument1Value);
+                    cpu.SetRegister(Register.CS, cpu.ReadU16(address + 2));
+                    cpu.SetRegister(Register.IP, cpu.ReadU16(address));
                     break;
 
                 case OpCodeManager.ARG_DEREFERENCE:
-                    segment = instruction.Prefix;
-                    if (segment == 0) segment = DS;
+                    segment = (Register)instruction.Prefix;
+                    if (segment == 0) segment = Register.DS;
                     switch (instruction.Argument1Value)
                     {
                         case 0:
-                            address = (uint)registers[BX] + registers[SI];
+                            address = (uint)cpu.GetRegister(Register.BX) + cpu.GetRegister(Register.SI);
                             break;
                         case 1:
-                            address = (uint)registers[BX] + registers[DI];
+                            address = (uint)cpu.GetRegister(Register.BX) + cpu.GetRegister(Register.DI);
                             break;
                         case 2:
-                            address = (uint)registers[BP] + registers[SI];
+                            address = (uint)cpu.GetRegister(Register.BP) + cpu.GetRegister(Register.SI);
                             break;
                         case 3:
-                            address = (uint)registers[BP] + registers[DI];
+                            address = (uint)cpu.GetRegister(Register.BP) + cpu.GetRegister(Register.DI);
                             break;
                         case 4:
-                            address = registers[SI];
+                            address = cpu.GetRegister(Register.SI);
                             break;
                         case 5:
-                            address = registers[DI];
+                            address = cpu.GetRegister(Register.DI);
                             break;
                         case 6:
-                            address = registers[BP];
+                            address = cpu.GetRegister(Register.BP);
                             break;
                         case 7:
-                            address = registers[BX];
+                            address = cpu.GetRegister(Register.BX);
                             break;
                         default:
                             throw new NotImplementedException();
                     }
-                    address = SegmentToAddress(registers[segment], (ushort)((ushort)address + instruction.Argument1Displacement));
-                    if (instruction.Flag.HasFlag(OpCodeManager.OpCodeFlag.Size8))
-                        WriteU8(address, (byte)value);
-                    else WriteU16(address, value);
-                    break;
-
-                case OpCodeManager.ARG_MEMORY:
-                    segment = instruction.Prefix;
-                    if (segment == 0) segment = DS;
-                    address = SegmentToAddress(registers[segment], (ushort)instruction.Argument1Value);
-                    if (instruction.Flag.HasFlag(OpCodeManager.OpCodeFlag.Size8))
-                        WriteU8(address, (byte)value);
-                    else WriteU16(address, value);
+                    address = SegmentToAddress(cpu.GetRegister(segment), (ushort)((ushort)address + instruction.Argument1Displacement));
+                    cpu.SetRegister(Register.CS, cpu.ReadU16(address + 2));
+                    cpu.SetRegister(Register.IP, cpu.ReadU16(address));
                     break;
 
                 default:
                     throw new NotImplementedException();
             }
         }
-        private ushort GetInstructionAddress(int instruction, int instructionValue, int instructionDisplacement)
+        private static void DispatchNop(Cpu8086 cpu, OpCodeManager.Instruction instruction)
         {
-            switch (instruction)
+            throw new NotImplementedException();
+        }
+        private static void DispatchCwd(Cpu8086 cpu, OpCodeManager.Instruction instruction)
+        {
+            throw new NotImplementedException();
+        }
+        private static void DispatchCallNearRelative(Cpu8086 cpu, OpCodeManager.Instruction instruction)
+        {
+            Debug.Assert(instruction.Argument1 == OpCodeManager.ARG_CONSTANT);
+            cpu.Push(cpu.GetRegister(Register.IP));
+            cpu.registers[(int)Register.IP] += (ushort)instruction.Argument1Value;
+        }
+        private static void DispatchCallNear(Cpu8086 cpu, OpCodeManager.Instruction instruction)
+        {
+            var address = cpu.GetInstructionValue(instruction.Flag, instruction.Prefix, instruction.Argument1, instruction.Argument1Value, instruction.Argument1Displacement);
+            cpu.Push(cpu.GetRegister(Register.IP));
+            cpu.SetRegister(Register.IP, address);
+        }
+        private static void DispatchCallFar(Cpu8086 cpu, OpCodeManager.Instruction instruction)
+        {
+            cpu.Push(cpu.GetRegister(Register.CS));
+            cpu.Push(cpu.GetRegister(Register.IP));
+            DispatchFarJump(cpu, instruction);
+        }
+        private static void DispatchWait(Cpu8086 cpu, OpCodeManager.Instruction instruction)
+        {
+            throw new NotImplementedException();
+        }
+        private static void DispatchSahf(Cpu8086 cpu, OpCodeManager.Instruction instruction)
+        {
+            throw new NotImplementedException();
+        }
+        private static void DispatchLahf(Cpu8086 cpu, OpCodeManager.Instruction instruction)
+        {
+            throw new NotImplementedException();
+        }
+        private static void DispatchAas(Cpu8086 cpu, OpCodeManager.Instruction instruction)
+        {
+            var flags = cpu.GetFlags();
+            var ax = cpu.GetRegister(Register.AX);
+            if ((ax & 0xF) > 9 || flags.HasFlag(FlagsRegister.Adjust))
             {
-                case OpCodeManager.ARG_DEREFERENCE:
-                    ushort address;
-                    switch (instructionValue)
-                    {
-                        case 0:
-                            address = (ushort)(registers[BX] + registers[SI]);
-                            break;
-                        case 1:
-                            address = (ushort)(registers[BX] + registers[DI]);
-                            break;
-                        case 2:
-                            address = (ushort)(registers[BP] + registers[SI]);
-                            break;
-                        case 3:
-                            address = (ushort)(registers[BP] + registers[DI]);
-                            break;
-                        case 4:
-                            address = registers[SI];
-                            break;
-                        case 5:
-                            address = registers[DI];
-                            break;
-                        case 6:
-                            address = registers[BP];
-                            break;
-                        case 7:
-                            address = registers[BX];
-                            break;
-                        default:
-                            throw new NotImplementedException();
-                    }
-                    return (ushort)(address + instructionDisplacement);
+                var al = (byte)(ax & 0xFF);
+                var ah = (byte)((ax >> 8) & 0xFF);
 
-                case OpCodeManager.ARG_MEMORY:
-                    return (ushort)instructionValue;
+                al = (byte)((al - 6) & 0x0F);
+                ah--;
+
+                cpu.SetRegister(Register.AX, (ushort)((ah << 8) | al));
+                flags |= FlagsRegister.Carry | FlagsRegister.Adjust;
+            }
+            else
+            {
+                cpu.SetRegister(Register.AX, (ushort)(ax & 0xFF0F));
+                flags &= ~(FlagsRegister.Carry | FlagsRegister.Adjust);
+            }
+            cpu.SetFlags(flags);
+        }
+        private static void DispatchAaa(Cpu8086 cpu, OpCodeManager.Instruction instruction)
+        {
+            var flags = cpu.GetFlags();
+            var ax = cpu.GetRegister(Register.AX);
+            if ((ax & 0xF) > 9 || flags.HasFlag(FlagsRegister.Adjust))
+            {
+                var al = (byte)(ax & 0xFF);
+                var ah = (byte)((ax >> 8) & 0xFF);
+
+                al = (byte)((al + 6) & 0x0F);
+                ah++;
+
+                cpu.SetRegister(Register.AX, (ushort)((ah << 8) | al));
+                flags |= FlagsRegister.Carry | FlagsRegister.Adjust;
+            }
+            else
+            {
+                cpu.SetRegister(Register.AX, (ushort)(ax & 0xFF0F));
+                flags &= ~(FlagsRegister.Carry | FlagsRegister.Adjust);
+            }
+            cpu.SetFlags(flags);
+        }
+        private static void DispatchDas(Cpu8086 cpu, OpCodeManager.Instruction instruction)
+        {
+            throw new NotImplementedException();
+        }
+        private static void DispatchStringOperation(Cpu8086 cpu, OpCodeManager.Instruction instruction)
+        {
+            int counter;
+            switch (instruction.Prefix)
+            {
+                case 0:
+                    DispatchOneStringOperation(cpu, instruction);
+                    break;
+                case 0xF2:
+                    counter = cpu.GetRegister(Register.CX);
+                    while (counter != 0)
+                    {
+                        DispatchOneStringOperation(cpu, instruction);
+                        counter--;
+                        if (!cpu.GetFlags().HasFlag(FlagsRegister.Direction))
+                            break;
+                    }
+                    break;
+                case 0xF3:
+                    counter = cpu.GetRegister(Register.CX);
+                    if (instruction.Type == OpCodeManager.InstructionType.Cmps || instruction.Type == OpCodeManager.InstructionType.Scas)
+                    {
+                        while (counter != 0)
+                        {
+                            DispatchOneStringOperation(cpu, instruction);
+                            counter--;
+                            if (!cpu.GetFlags().HasFlag(FlagsRegister.Zero))
+                                break;
+                        }
+                    }
+                    else
+                    {
+                        while (counter != 0)
+                        {
+                            DispatchOneStringOperation(cpu, instruction);
+                            counter--;
+                        }
+                    }
+                    break;
+                default:
+                    throw new NotImplementedException();
+            }
+        }
+        private static void DispatchOneStringOperation(Cpu8086 cpu, OpCodeManager.Instruction instruction)
+        {
+            switch (instruction.Type)
+            {
+                case OpCodeManager.InstructionType.Cmps:
+                    DispatchCmps(cpu, instruction);
+                    break;
+                case OpCodeManager.InstructionType.Lods:
+                    DispatchLods(cpu, instruction);
+                    break;
+                case OpCodeManager.InstructionType.Movs:
+                    DispatchMovs(cpu, instruction);
+                    break;
+                case OpCodeManager.InstructionType.Stos:
+                    DispatchStos(cpu, instruction);
+                    break;
+                default:
+                    throw new NotImplementedException();
+            }
+        }
+        private static void DispatchCmps(Cpu8086 cpu, OpCodeManager.Instruction instruction)
+        {
+            ushort value1;
+            ushort value2;
+            byte size;
+            if (instruction.Flag.HasFlag(OpCodeManager.OpCodeFlag.Size8))
+            {
+                value1 = cpu.ReadU8(SegmentToAddress(cpu.GetRegister(Register.DS), cpu.GetRegister(Register.SI)));
+                value2 = cpu.ReadU8(SegmentToAddress(cpu.GetRegister(Register.ES), cpu.GetRegister(Register.DI)));
+                size = 1;
+            }
+            else
+            {
+                value1 = cpu.ReadU16(SegmentToAddress(cpu.GetRegister(Register.DS), cpu.GetRegister(Register.SI)));
+                value2 = cpu.ReadU16(SegmentToAddress(cpu.GetRegister(Register.ES), cpu.GetRegister(Register.DI)));
+                size = 2;
+            }
+            var result = value1 - value2;
+
+            ushort truncResult;
+            bool carry;
+            bool sign;
+            if (instruction.Flag.HasFlag(OpCodeManager.OpCodeFlag.Size8))
+            {
+                truncResult = (byte)result;
+                carry = (uint)result > 0xFF;
+                sign = ((truncResult >> 7) & 1) == 1;
+            }
+            else
+            {
+                truncResult = (ushort)result;
+                carry = (uint)result > 0xFFFF;
+                sign = ((truncResult >> 15) & 1) == 1;
+            }
+            var auxiliary = ((value1 ^ value2 ^ truncResult) & 0x10) != 0;
+            var zero = truncResult == 0;
+            var parity = parityLookup[(byte)result];
+            var overflow = carry ^ sign;
+
+            var flags = cpu.GetFlags();
+            flags &= ~(FlagsRegister.Carry | FlagsRegister.Parity | FlagsRegister.Adjust | FlagsRegister.Zero | FlagsRegister.Sign | FlagsRegister.Overflow);
+            flags |= (carry ? FlagsRegister.Carry : 0) |
+                     (parity ? FlagsRegister.Parity : 0) |
+                     (auxiliary ? FlagsRegister.Adjust : 0) |
+                     (zero ? FlagsRegister.Zero : 0) |
+                     (sign ? FlagsRegister.Sign : 0) |
+                     (overflow ? FlagsRegister.Overflow : 0);
+            cpu.SetFlags(flags);
+
+            if (!cpu.GetFlags().HasFlag(FlagsRegister.Direction))
+            {
+                cpu.registers[(int)Register.DI] += size;
+                cpu.registers[(int)Register.SI] += size;
+            }
+            else
+            {
+                cpu.registers[(int)Register.DI] -= size;
+                cpu.registers[(int)Register.SI] -= size;
+            }
+        }
+        private static void DispatchStos(Cpu8086 cpu, OpCodeManager.Instruction instruction)
+        {
+            byte size;
+            if (instruction.Flag.HasFlag(OpCodeManager.OpCodeFlag.Size8))
+            {
+                cpu.WriteU8(SegmentToAddress(cpu.GetRegister(Register.ES), cpu.GetRegister(Register.DI)), (byte)(cpu.GetRegister(Register.AX) & 0xFF));
+                size = 1;
+            }
+            else
+            {
+                cpu.WriteU16(SegmentToAddress(cpu.GetRegister(Register.ES), cpu.GetRegister(Register.DI)), cpu.GetRegister(Register.AX));
+                size = 2;
+            }
+
+            if (!cpu.GetFlags().HasFlag(FlagsRegister.Direction))
+                cpu.registers[(int)Register.DI] += size;
+            else cpu.registers[(int)Register.DI] -= size;
+        }
+        private static void DispatchLods(Cpu8086 cpu, OpCodeManager.Instruction instruction)
+        {
+            var prefix = (Register)instruction.Prefix;
+            if (prefix == 0) prefix = Register.DS;
+            var sourceAddress = SegmentToAddress(cpu.GetRegister(prefix), cpu.GetRegister(Register.SI));
+
+            byte size;
+            if (instruction.Flag.HasFlag(OpCodeManager.OpCodeFlag.Size8))
+            {
+                var value = cpu.ReadU8(sourceAddress);
+                cpu.SetRegisterU8(Register.AL, value);
+                size = 1;
+            }
+            else
+            {
+                var value = cpu.ReadU16(sourceAddress);
+                cpu.SetRegister(Register.AX, value);
+                size = 2;
+            }
+
+            if (!cpu.GetFlags().HasFlag(FlagsRegister.Direction))
+            {
+                cpu.registers[(int)Register.DI] += size;
+                cpu.registers[(int)Register.SI] += size;
+            }
+            else
+            {
+                cpu.registers[(int)Register.DI] += size;
+                cpu.registers[(int)Register.SI] += size;
+            }
+        }
+        private static void DispatchMovs(Cpu8086 cpu, OpCodeManager.Instruction instruction)
+        {
+            var sourceAddress = SegmentToAddress(cpu.GetRegister(Register.DS), cpu.GetRegister(Register.SI));
+            var destAddress = SegmentToAddress(cpu.GetRegister(Register.ES), cpu.GetRegister(Register.DI));
+            byte size;
+            if (instruction.Flag.HasFlag(OpCodeManager.OpCodeFlag.Size8))
+            {
+                var value = cpu.ReadU8(sourceAddress);
+                cpu.WriteU8(destAddress, value);
+                size = 1;
+            }
+            else
+            {
+                var value = cpu.ReadU16(sourceAddress);
+                cpu.WriteU16(destAddress, value);
+                size = 2;
+            }
+
+            if (!cpu.GetFlags().HasFlag(FlagsRegister.Direction))
+            {
+                cpu.registers[(int)Register.DI] += size;
+                cpu.registers[(int)Register.SI] += size;
+            }
+            else
+            {
+                cpu.registers[(int)Register.DI] += size;
+                cpu.registers[(int)Register.SI] += size;
+            }
+        }
+        private static void DispatchReturnNear(Cpu8086 cpu, OpCodeManager.Instruction instruction)
+        {
+            cpu.SetRegister(Register.IP, cpu.Pop());
+            if (instruction.Argument1 == OpCodeManager.ARG_CONSTANT)
+                cpu.SetRegister(Register.SP, (ushort)(cpu.GetRegister(Register.SP) + instruction.Argument1Value));
+            else Debug.Assert(instruction.Argument1 == OpCodeManager.ARG_NONE);
+        }
+        private static void DispatchReturnFar(Cpu8086 cpu, OpCodeManager.Instruction instruction)
+        {
+            cpu.SetRegister(Register.IP, cpu.Pop());
+            cpu.SetRegister(Register.CS, cpu.Pop());
+            if (instruction.Argument1 == OpCodeManager.ARG_CONSTANT)
+                cpu.SetRegister(Register.SP, (ushort)(cpu.GetRegister(Register.SP) + instruction.Argument1Value));
+            else Debug.Assert(instruction.Argument1 == OpCodeManager.ARG_NONE);
+        }
+        private static void DispatchLoadFarPointer(Cpu8086 cpu, OpCodeManager.Instruction instruction, Register register)
+        {
+            var prefix = (Register)instruction.Prefix;
+            if (prefix == 0) prefix = Register.DS;
+            var address = SegmentToAddress(cpu.GetRegister(prefix), cpu.GetInstructionAddress(instruction.Argument2, instruction.Argument2Value, instruction.Argument2Displacement));
+            var memory = cpu.ReadU16(address);
+            var segment = cpu.ReadU16(address + 2);
+
+            cpu.SetRegister(register, segment);
+            switch ((Register)instruction.Argument1)
+            {
+                case Register.AX:
+                case Register.CX:
+                case Register.DX:
+                case Register.BX:
+                case Register.SP:
+                case Register.BP:
+                case Register.SI:
+                case Register.DI:
+                case Register.IP:
+                case Register.CS:
+                case Register.DS:
+                case Register.ES:
+                case Register.SS:
+                    cpu.registers[instruction.Argument1] = memory;
+                    break;
 
                 default:
                     throw new NotImplementedException();
             }
         }
-        private ushort GetInstructionValue(OpCodeManager.OpCodeFlag flag, byte prefix, int instruction, int instructionValue, int instructionDisplacement)
+        private static void DispatchInterrupt(Cpu8086 cpu, OpCodeManager.Instruction instruction)
         {
-            byte segment;
-            uint address;
-            switch (instruction)
+            Debug.Assert(instruction.Argument1 == OpCodeManager.ARG_CONSTANT);
+
+            if (instruction.Argument1Value == 3)
+                Debugger.Break();
+
+            cpu.Push(cpu.GetRegister(Register.FLAGS));
+            cpu.Push(cpu.GetRegister(Register.CS));
+            cpu.Push(cpu.GetRegister(Register.IP));
+            cpu.SetRegister(Register.CS, cpu.ReadU16((uint)instruction.Argument1Value * 4 + 2));
+            cpu.SetRegister(Register.IP, cpu.ReadU16((uint)instruction.Argument1Value * 4));
+        }
+        private static void DispatchInto(Cpu8086 cpu, OpCodeManager.Instruction instruction)
+        {
+            throw new NotImplementedException();
+        }
+        private static void DispatchReturnInterrupt(Cpu8086 cpu, OpCodeManager.Instruction instruction)
+        {
+            cpu.SetRegister(Register.IP, cpu.Pop());
+            cpu.SetRegister(Register.CS, cpu.Pop());
+            cpu.SetRegister(Register.FLAGS, cpu.Pop());
+        }
+        private static void DispatchAam(Cpu8086 cpu, OpCodeManager.Instruction instruction)
+        {
+            throw new NotImplementedException();
+        }
+        private static void DispatchAad(Cpu8086 cpu, OpCodeManager.Instruction instruction)
+        {
+            throw new NotImplementedException();
+        }
+        private static void DispatchXlat(Cpu8086 cpu, OpCodeManager.Instruction instruction)
+        {
+            throw new NotImplementedException();
+        }
+        private static void DispatchLoop(Cpu8086 cpu, OpCodeManager.Instruction instruction)
+        {
+            var counter = --cpu.registers[(int)Register.CX];
+            if (counter != 0)
+                DispatchJump(cpu, instruction);
+        }
+        private static void DispatchLoopZero(Cpu8086 cpu, OpCodeManager.Instruction instruction)
+        {
+            var counter = --cpu.registers[(int)Register.CX];
+            if (counter != 0 && cpu.GetFlags().HasFlag(FlagsRegister.Zero))
+                DispatchJump(cpu, instruction);
+        }
+        private static void DispatchLoopNotZero(Cpu8086 cpu, OpCodeManager.Instruction instruction)
+        {
+            var counter = --cpu.registers[(int)Register.CX];
+            if (counter != 0 && !cpu.GetFlags().HasFlag(FlagsRegister.Zero))
+                DispatchJump(cpu, instruction);
+        }
+        private static void DispatchIn(Cpu8086 cpu, OpCodeManager.Instruction instruction)
+        {
+            throw new NotImplementedException();
+        }
+        private static void DispatchOut(Cpu8086 cpu, OpCodeManager.Instruction instruction)
+        {
+            var port = cpu.GetInstructionValue(instruction.Flag, instruction.Prefix, instruction.Argument1, instruction.Argument1Value, instruction.Argument1Displacement);
+            var value = cpu.GetInstructionValue(instruction.Flag, instruction.Prefix, instruction.Argument2, instruction.Argument2Value, instruction.Argument2Displacement);
+            if (instruction.Flag.HasFlag(OpCodeManager.OpCodeFlag.Size8))
+                cpu.WriteU8((uint)(IO_PORT_OFFSET + port), (byte)value);
+            else cpu.WriteU16((uint)(IO_PORT_OFFSET + port), value);
+        }
+
+        private static void DispatchHalt(Cpu8086 cpu, OpCodeManager.Instruction instruction) =>
+            // Goes back one instruction so it halts again if process instruction is called
+            --cpu.registers[(int)Register.IP];
+
+        private static void DispatchCmc(Cpu8086 cpu, OpCodeManager.Instruction instruction)
+        {
+            throw new NotImplementedException();
+        }
+
+        private static void DispatchClc(Cpu8086 cpu, OpCodeManager.Instruction instruction) =>
+            cpu.SetFlags(cpu.GetFlags() & ~FlagsRegister.Carry);
+        private static void DispatchCld(Cpu8086 cpu, OpCodeManager.Instruction instruction) =>
+            cpu.SetFlags(cpu.GetFlags() & ~FlagsRegister.Direction);
+        private static void DispatchCli(Cpu8086 cpu, OpCodeManager.Instruction instruction) =>
+            cpu.SetFlags(cpu.GetFlags() & ~FlagsRegister.Interrupt);
+
+        private static void DispatchStc(Cpu8086 cpu, OpCodeManager.Instruction instruction) =>
+            cpu.SetFlags(cpu.GetFlags() | FlagsRegister.Carry);
+        private static void DispatchStd(Cpu8086 cpu, OpCodeManager.Instruction instruction) =>
+            cpu.SetFlags(cpu.GetFlags() | FlagsRegister.Direction);
+        private static void DispatchSti(Cpu8086 cpu, OpCodeManager.Instruction instruction) =>
+            cpu.SetFlags(cpu.GetFlags() | FlagsRegister.Interrupt);
+
+        private static void DispatchJump(Cpu8086 cpu, OpCodeManager.Instruction instruction)
+        {
+            Debug.Assert(instruction.Argument1 == OpCodeManager.ARG_CONSTANT);
+            cpu.registers[(int)Register.IP] += (ushort)instruction.Argument1Value;
+        }
+        private static void DispatchJumpIfOverflow(Cpu8086 cpu, OpCodeManager.Instruction instruction)
+        {
+            if (cpu.GetFlags().HasFlag(FlagsRegister.Overflow))
+                DispatchJump(cpu, instruction);
+        }
+        private static void DispatchJumpIfNotOverflow(Cpu8086 cpu, OpCodeManager.Instruction instruction)
+        {
+            if (!cpu.GetFlags().HasFlag(FlagsRegister.Overflow))
+                DispatchJump(cpu, instruction);
+        }
+        private static void DispatchJumpIfCarry(Cpu8086 cpu, OpCodeManager.Instruction instruction)
+        {
+            if (cpu.GetFlags().HasFlag(FlagsRegister.Carry))
+                DispatchJump(cpu, instruction);
+        }
+        private static void DispatchJumpIfNotCarry(Cpu8086 cpu, OpCodeManager.Instruction instruction)
+        {
+            if (!cpu.GetFlags().HasFlag(FlagsRegister.Carry))
+                DispatchJump(cpu, instruction);
+        }
+        private static void DispatchJumpIfZero(Cpu8086 cpu, OpCodeManager.Instruction instruction)
+        {
+            if (cpu.GetFlags().HasFlag(FlagsRegister.Zero))
+                DispatchJump(cpu, instruction);
+        }
+        private static void DispatchJumpIfNotZero(Cpu8086 cpu, OpCodeManager.Instruction instruction)
+        {
+            if (!cpu.GetFlags().HasFlag(FlagsRegister.Zero))
+                DispatchJump(cpu, instruction);
+        }
+        private static void DispatchJBE(Cpu8086 cpu, OpCodeManager.Instruction instruction)
+        {
+            var flags = cpu.GetFlags();
+            if (flags.HasFlag(FlagsRegister.Carry) || flags.HasFlag(FlagsRegister.Zero))
+                DispatchJump(cpu, instruction);
+        }
+        private static void DispatchJA(Cpu8086 cpu, OpCodeManager.Instruction instruction)
+        {
+            var flags = cpu.GetFlags();
+            if (!flags.HasFlag(FlagsRegister.Carry) && !flags.HasFlag(FlagsRegister.Zero))
+                DispatchJump(cpu, instruction);
+        }
+        private static void DispatchJS(Cpu8086 cpu, OpCodeManager.Instruction instruction)
+        {
+            if (cpu.GetFlags().HasFlag(FlagsRegister.Sign))
+                DispatchJump(cpu, instruction);
+        }
+        private static void DispatchJNS(Cpu8086 cpu, OpCodeManager.Instruction instruction)
+        {
+            if (!cpu.GetFlags().HasFlag(FlagsRegister.Sign))
+                DispatchJump(cpu, instruction);
+        }
+        private static void DispatchJPE(Cpu8086 cpu, OpCodeManager.Instruction instruction)
+        {
+            if (cpu.GetFlags().HasFlag(FlagsRegister.Parity))
+                DispatchJump(cpu, instruction);
+        }
+        private static void DispatchJLE(Cpu8086 cpu, OpCodeManager.Instruction instruction)
+        {
+            var flags = cpu.GetFlags();
+            if (flags.HasFlag(FlagsRegister.Zero) || flags.HasFlag(FlagsRegister.Sign) != flags.HasFlag(FlagsRegister.Overflow))
+                DispatchJump(cpu, instruction);
+        }
+        private static void DispatchJPO(Cpu8086 cpu, OpCodeManager.Instruction instruction)
+        {
+            if (!cpu.GetFlags().HasFlag(FlagsRegister.Parity))
+                DispatchJump(cpu, instruction);
+        }
+        private static void DispatchJL(Cpu8086 cpu, OpCodeManager.Instruction instruction)
+        {
+            var flags = cpu.GetFlags();
+            if (flags.HasFlag(FlagsRegister.Sign) != flags.HasFlag(FlagsRegister.Overflow))
+                DispatchJump(cpu, instruction);
+        }
+        private static void DispatchJGE(Cpu8086 cpu, OpCodeManager.Instruction instruction)
+        {
+            var flags = cpu.GetFlags();
+            if (flags.HasFlag(FlagsRegister.Sign) == flags.HasFlag(FlagsRegister.Overflow))
+                DispatchJump(cpu, instruction);
+        }
+        private static void DispatchJG(Cpu8086 cpu, OpCodeManager.Instruction instruction)
+        {
+            var flags = cpu.GetFlags();
+            if (!flags.HasFlag(FlagsRegister.Zero) && flags.HasFlag(FlagsRegister.Sign) == flags.HasFlag(FlagsRegister.Overflow))
+                DispatchJump(cpu, instruction);
+        }
+        private static void DispatchJcxz(Cpu8086 cpu, OpCodeManager.Instruction instruction)
+        {
+            if (cpu.GetRegister(Register.CX) == 0)
+                DispatchJump(cpu, instruction);
+        }
+        private static void DispatchRcr(Cpu8086 cpu, OpCodeManager.Instruction instruction)
+        {
+            throw new NotImplementedException();
+        }
+        private static void DispatchRol(Cpu8086 cpu, OpCodeManager.Instruction instruction)
+        {
+            throw new NotImplementedException();
+        }
+        private static void DispatchDaa(Cpu8086 cpu, OpCodeManager.Instruction instruction)
+        {
+            throw new NotImplementedException();
+        }
+        private static void DispatchRcl(Cpu8086 cpu, OpCodeManager.Instruction instruction)
+        {
+            throw new NotImplementedException();
+        }
+        private static void DispatchNot(Cpu8086 cpu, OpCodeManager.Instruction instruction)
+        {
+            throw new NotImplementedException();
+        }
+        private static void DispatchNegate(Cpu8086 cpu, OpCodeManager.Instruction instruction)
+        {
+            throw new NotImplementedException();
+        }
+        private static void DispatchMultiply(Cpu8086 cpu, OpCodeManager.Instruction instruction)
+        {
+            var value1 = cpu.GetRegister(Register.AX);
+            var value2 = cpu.GetInstructionValue(instruction.Flag, instruction.Prefix, instruction.Argument1, instruction.Argument1Value, instruction.Argument1Displacement);
+
+            if (instruction.Flag.HasFlag(OpCodeManager.OpCodeFlag.Size8))
             {
-                case AX:
-                case CX:
-                case DX:
-                case BX:
-                case SP:
-                case BP:
-                case SI:
-                case DI:
-                case IP:
-                case CS:
-                case DS:
-                case ES:
-                case SS:
-                    return registers[instruction];
+                value1 &= 0xFF;
+                value2 &= 0xFF;
+            }
+            var result = (uint)value1 * value2;
 
-                case OpCodeManager.ARG_BYTE_REGISTER:
-                    return GetByteRegister(instructionValue);
+            ushort truncResult;
+            bool carry;
+            bool sign;
+            if (instruction.Flag.HasFlag(OpCodeManager.OpCodeFlag.Size8))
+            {
+                truncResult = (byte)result;
+                carry = result > 0xFF;
+                sign = ((truncResult >> 7) & 1) == 1;
+            }
+            else
+            {
+                truncResult = (ushort)result;
+                carry = result > 0xFFFF;
+                sign = ((truncResult >> 15) & 1) == 1;
+            }
+            var auxiliary = ((value1 ^ value2 ^ truncResult) & 0x10) != 0;
+            var zero = truncResult == 0;
+            var parity = parityLookup[(byte)result];
+            var overflow = carry ^ sign;
 
-                case OpCodeManager.ARG_DEREFERENCE:
-                    segment = prefix;
-                    if (segment == 0) segment = DS;
-                    switch (instructionValue)
-                    {
-                        case 0:
-                            address = (uint)registers[BX] + registers[SI];
-                            break;
-                        case 1:
-                            address = (uint)registers[BX] + registers[DI];
-                            break;
-                        case 2:
-                            address = (uint)registers[BP] + registers[SI];
-                            break;
-                        case 3:
-                            address = (uint)registers[BP] + registers[DI];
-                            break;
-                        case 4:
-                            address = registers[SI];
-                            break;
-                        case 5:
-                            address = registers[DI];
-                            break;
-                        case 6:
-                            address = registers[BP];
-                            break;
-                        case 7:
-                            address = registers[BX];
-                            break;
-                        default:
-                            throw new NotImplementedException();
-                    }
-                    address = SegmentToAddress(registers[segment], (ushort)((ushort)address + instructionDisplacement));
-                    return flag.HasFlag(OpCodeManager.OpCodeFlag.Size8) ? ReadU8(address) : ReadU16(address);
+            var flags = cpu.GetFlags();
+            flags &= ~(FlagsRegister.Carry | FlagsRegister.Parity | FlagsRegister.Adjust | FlagsRegister.Zero | FlagsRegister.Sign | FlagsRegister.Overflow);
+            flags |= (carry ? FlagsRegister.Carry : 0) |
+                     (parity ? FlagsRegister.Parity : 0) |
+                     (auxiliary ? FlagsRegister.Adjust : 0) |
+                     (zero ? FlagsRegister.Zero : 0) |
+                     (sign ? FlagsRegister.Sign : 0) |
+                     (overflow ? FlagsRegister.Overflow : 0);
+            cpu.SetFlags(flags);
 
-                case OpCodeManager.ARG_MEMORY:
-                    segment = prefix;
-                    if (segment == 0) segment = DS;
-                    address = SegmentToAddress(registers[segment], (ushort)instructionValue);
-                    return flag.HasFlag(OpCodeManager.OpCodeFlag.Size8) ? ReadU8(address) : ReadU16(address);
+            cpu.SetRegister(Register.AX, (ushort)result);
+            if (!instruction.Flag.HasFlag(OpCodeManager.OpCodeFlag.Size8))
+                cpu.SetRegister(Register.DX, (ushort)(result >> 16));
+        }
+        private static void DispatchIMultiply(Cpu8086 cpu, OpCodeManager.Instruction instruction)
+        {
+            throw new NotImplementedException();
+        }
+        private static void DispatchDivide(Cpu8086 cpu, OpCodeManager.Instruction instruction)
+        {
+            uint value1;
+            if (instruction.Flag.HasFlag(OpCodeManager.OpCodeFlag.Size8))
+                value1 = cpu.GetRegister(Register.AX);
+            else value1 = (uint)cpu.GetRegister(Register.DX) << 16 | cpu.GetRegister(Register.AX);
+            var value2 = cpu.GetInstructionValue(instruction.Flag, instruction.Prefix, instruction.Argument1, instruction.Argument1Value, instruction.Argument1Displacement);
 
-                case OpCodeManager.ARG_CONSTANT:
-                    return (ushort)instructionValue;
+            if (instruction.Flag.HasFlag(OpCodeManager.OpCodeFlag.Size8))
+                value2 &= 0xFF;
 
+            var quotient = value1 / value2;
+            if ((instruction.Flag.HasFlag(OpCodeManager.OpCodeFlag.Size8) && quotient > 0xFF) || (!instruction.Flag.HasFlag(OpCodeManager.OpCodeFlag.Size8) && quotient > 0xFFFF))
+                throw new NotImplementedException();
+
+            var remainder = value1 % value2;
+
+            if (instruction.Flag.HasFlag(OpCodeManager.OpCodeFlag.Size8))
+                cpu.SetRegister(Register.AX, (ushort)((byte)quotient | ((remainder & 0xFF) << 8)));
+            else
+            {
+                cpu.SetRegister(Register.AX, (ushort)quotient);
+                cpu.SetRegister(Register.DX, (ushort)remainder);
+            }
+        }
+        private static void DispatchIDivide(Cpu8086 cpu, OpCodeManager.Instruction instruction)
+        {
+            throw new NotImplementedException();
+        }
+        private static void DispatchSbb(Cpu8086 cpu, OpCodeManager.Instruction instruction)
+        {
+            throw new NotImplementedException();
+        }
+        private static void DispatchEmulatorSpecial(Cpu8086 cpu, OpCodeManager.Instruction instruction)
+        {
+            Debug.Assert(instruction.Argument1 == OpCodeManager.ARG_CONSTANT);
+            switch (instruction.Argument1Value)
+            {
+                case 0x02:
+                    DispatchReadDrive(cpu);
+                    break;
                 default:
                     throw new NotImplementedException();
             }
+        }
+        private static void DispatchReadDrive(Cpu8086 cpu)
+        {
+            var driveNumber = cpu.ReadU8(SegmentToAddress(cpu.GetRegister(Register.SS), (ushort)(cpu.GetRegister(Register.BP) - 1)));
+            var headNumber = cpu.ReadU8(SegmentToAddress(cpu.GetRegister(Register.SS), (ushort)(cpu.GetRegister(Register.BP) - 2)));
+            var cylinderNumber = cpu.ReadU16(SegmentToAddress(cpu.GetRegister(Register.SS), (ushort)(cpu.GetRegister(Register.BP) - 4)));
+            var sectorNumber = cpu.ReadU8(SegmentToAddress(cpu.GetRegister(Register.SS), (ushort)(cpu.GetRegister(Register.BP) - 5)));
+            var sectorsToRead = cpu.ReadU8(SegmentToAddress(cpu.GetRegister(Register.SS), (ushort)(cpu.GetRegister(Register.BP) - 6)));
+            var destinationSegment = cpu.ReadU16(SegmentToAddress(cpu.GetRegister(Register.SS), (ushort)(cpu.GetRegister(Register.BP) - 8)));
+            var destinationOffset = cpu.ReadU16(SegmentToAddress(cpu.GetRegister(Register.SS), (ushort)(cpu.GetRegister(Register.BP) - 10)));
+
+            var destination = SegmentToAddress(destinationSegment, destinationOffset);
+
+            if (cpu.drives[driveNumber] != null)
+            {
+                var drive = cpu.drives[driveNumber];
+                var driveOffset = headNumber * drive.NumberCylinders * drive.NumberSectors * drive.SectorSize;
+                driveOffset += cylinderNumber * drive.NumberSectors * drive.SectorSize;
+                driveOffset += (sectorNumber - 1) * drive.SectorSize;
+                cpu.WriteBytes(destination, drive.Read(driveOffset, sectorsToRead * drive.SectorSize));
+                cpu.SetRegister(Register.AX, 0);
+            }
+            else cpu.SetRegister(Register.AX, 1);
         }
 
         private static string OutputInstruction(OpCodeManager.Instruction instruction)
@@ -1328,53 +1686,53 @@ namespace Sharp8086.CPU
                 return null;
             switch (argument)
             {
-                case AX:
+                case (int)Register.AX:
                     return "AX";
-                case CX:
+                case (int)Register.CX:
                     return "CX";
-                case DX:
+                case (int)Register.DX:
                     return "DX";
-                case BX:
+                case (int)Register.BX:
                     return "BX";
-                case SP:
+                case (int)Register.SP:
                     return "SP";
-                case BP:
+                case (int)Register.BP:
                     return "BP";
-                case SI:
+                case (int)Register.SI:
                     return "SI";
-                case DI:
+                case (int)Register.DI:
                     return "DI";
-                case IP:
+                case (int)Register.IP:
                     return "IP";
-                case CS:
+                case (int)Register.CS:
                     return "CS";
-                case DS:
+                case (int)Register.DS:
                     return "DS";
-                case ES:
+                case (int)Register.ES:
                     return "ES";
-                case SS:
+                case (int)Register.SS:
                     return "SS";
-                case FLAGS:
+                case (int)Register.FLAGS:
                     return "FLAGS";
 
                 case OpCodeManager.ARG_BYTE_REGISTER:
-                    switch (argumentValue)
+                    switch ((Register)argumentValue)
                     {
-                        case AL:
+                        case Register.AL:
                             return "AL";
-                        case CL:
+                        case Register.CL:
                             return "CL";
-                        case DL:
+                        case Register.DL:
                             return "DL";
-                        case BL:
+                        case Register.BL:
                             return "BL";
-                        case AH:
+                        case Register.AH:
                             return "AH";
-                        case CH:
+                        case Register.CH:
                             return "CH";
-                        case DH:
+                        case Register.DH:
                             return "DH";
-                        case BH:
+                        case Register.BH:
                             return "BH";
                         default:
                             throw new NotImplementedException();
@@ -1410,33 +1768,33 @@ namespace Sharp8086.CPU
                         default:
                             throw new NotImplementedException();
                     }
-                    switch (prefix)
+                    switch ((Register)prefix)
                     {
                         case 0:
                             return argumentDisplacement < 0 ? $"[{value}{argumentDisplacement}]" : $"[{value}+{argumentDisplacement}]";
-                        case ES:
+                        case Register.ES:
                             return argumentDisplacement < 0 ? $"[ES:{value}{argumentDisplacement}]" : $"[ES:{value}+{argumentDisplacement}]";
-                        case CS:
+                        case Register.CS:
                             return argumentDisplacement < 0 ? $"[CS:{value}{argumentDisplacement}]" : $"[CS:{value}+{argumentDisplacement}]";
-                        case SS:
+                        case Register.SS:
                             return argumentDisplacement < 0 ? $"[SS:{value}{argumentDisplacement}]" : $"[SS:{value}+{argumentDisplacement}]";
-                        case DS:
+                        case Register.DS:
                             return argumentDisplacement < 0 ? $"[DS:{value}{argumentDisplacement}]" : $"[DS:{value}+{argumentDisplacement}]";
                         default:
                             throw new NotImplementedException();
                     }
                 case OpCodeManager.ARG_MEMORY:
-                    switch (prefix)
+                    switch ((Register)prefix)
                     {
                         case 0:
                             return $"[{argumentValue:X4}]";
-                        case ES:
+                        case Register.ES:
                             return $"[ES:{argumentValue:X4}]";
-                        case CS:
+                        case Register.CS:
                             return $"[CS:{argumentValue:X4}]";
-                        case SS:
+                        case Register.SS:
                             return $"[SS:{argumentValue:X4}]";
-                        case DS:
+                        case Register.DS:
                             return $"[DS:{argumentValue:X4}]";
                         default:
                             throw new NotImplementedException();
@@ -1454,64 +1812,73 @@ namespace Sharp8086.CPU
 
         private static uint SegmentToAddress(ushort segment, ushort offset) => (uint)((segment << 4) + offset);
 
-        public ushort GetRegister(int register) => registers[register];
-        public void SetRegister(int register, ushort value) => registers[register] = value;
-        public byte GetByteRegister(int register)
+        public ushort GetRegister(Register register)
         {
+            if (((uint)register & 0x80000000) == 0)
+                return registers[(int)register];
             switch (register)
             {
-                case AL:
-                    return (byte)(registers[AX] & 0xFF);
-                case CL:
-                    return (byte)(registers[CX] & 0xFF);
-                case DL:
-                    return (byte)(registers[DX] & 0xFF);
-                case BL:
-                    return (byte)(registers[BX] & 0xFF);
-                case AH:
-                    return (byte)((registers[AX] >> 8) & 0xFF);
-                case CH:
-                    return (byte)((registers[CX] >> 8) & 0xFF);
-                case DH:
-                    return (byte)((registers[DX] >> 8) & 0xFF);
-                case BH:
-                    return (byte)((registers[BX] >> 8) & 0xFF);
+                case Register.AL:
+                    return (byte)(GetRegister(Register.AX) & 0xFF);
+                case Register.CL:
+                    return (byte)(GetRegister(Register.CX) & 0xFF);
+                case Register.DL:
+                    return (byte)(GetRegister(Register.DX) & 0xFF);
+                case Register.BL:
+                    return (byte)(GetRegister(Register.BX) & 0xFF);
+                case Register.AH:
+                    return (byte)((GetRegister(Register.AX) >> 8) & 0xFF);
+                case Register.CH:
+                    return (byte)((GetRegister(Register.CX) >> 8) & 0xFF);
+                case Register.DH:
+                    return (byte)((GetRegister(Register.DX) >> 8) & 0xFF);
+                case Register.BH:
+                    return (byte)((GetRegister(Register.BX) >> 8) & 0xFF);
                 default:
-                    throw new NotImplementedException();
+                    throw new ArgumentOutOfRangeException(nameof(register));
             }
         }
-        private void SetByteRegister(int register, byte value)
+        public byte GetRegisterU8(Register register) => (byte)GetRegister(register);
+        public FlagsRegister GetFlags() => (FlagsRegister)GetRegister(Register.FLAGS);
+        public void SetRegister(Register register, ushort value)
         {
-            switch (register)
+            if (((uint)register & 0x80000000) == 0)
+                registers[(int)register] = value;
+            else
             {
-                case AL:
-                    registers[AX] = (ushort)((registers[AX] & 0xFF00) | value);
-                    break;
-                case CL:
-                    registers[CX] = (ushort)((registers[CX] & 0xFF00) | value);
-                    break;
-                case DL:
-                    registers[DX] = (ushort)((registers[DX] & 0xFF00) | value);
-                    break;
-                case BL:
-                    registers[BX] = (ushort)((registers[BX] & 0xFF00) | value);
-                    break;
-                case AH:
-                    registers[AX] = (ushort)((registers[AX] & 0x00FF) | (value << 8));
-                    break;
-                case CH:
-                    registers[CX] = (ushort)((registers[CX] & 0x00FF) | (value << 8));
-                    break;
-                case DH:
-                    registers[DX] = (ushort)((registers[DX] & 0x00FF) | (value << 8));
-                    break;
-                case BH:
-                    registers[BX] = (ushort)((registers[BX] & 0x00FF) | (value << 8));
-                    break;
-                default:
-                    throw new NotImplementedException();
+                switch (register)
+                {
+                    case Register.AL:
+                        registers[(int)Register.AX] = (ushort)((GetRegister(Register.AX) & 0xFF00) | value);
+                        break;
+                    case Register.CL:
+                        registers[(int)Register.CX] = (ushort)((GetRegister(Register.CX) & 0xFF00) | value);
+                        break;
+                    case Register.DL:
+                        registers[(int)Register.DX] = (ushort)((GetRegister(Register.DX) & 0xFF00) | value);
+                        break;
+                    case Register.BL:
+                        registers[(int)Register.BX] = (ushort)((GetRegister(Register.BX) & 0xFF00) | value);
+                        break;
+                    case Register.AH:
+                        registers[(int)Register.AX] = (ushort)((GetRegister(Register.AX) & 0x00FF) | (value << 8));
+                        break;
+                    case Register.CH:
+                        registers[(int)Register.CX] = (ushort)((GetRegister(Register.CX) & 0x00FF) | (value << 8));
+                        break;
+                    case Register.DH:
+                        registers[(int)Register.DX] = (ushort)((GetRegister(Register.DX) & 0x00FF) | (value << 8));
+                        break;
+                    case Register.BH:
+                        registers[(int)Register.BX] = (ushort)((GetRegister(Register.BX) & 0x00FF) | (value << 8));
+                        break;
+                    default:
+                        throw new ArgumentOutOfRangeException(nameof(register));
+                }
             }
         }
+        public void SetRegisterU8(Register register, byte value) => SetRegister(register, value);
+        public void SetFlags(FlagsRegister value) => SetRegister(Register.FLAGS, (ushort)value);
 
         public byte ReadU8(uint address)
         {
@@ -1544,14 +1911,14 @@ namespace Sharp8086.CPU
 
         byte IInstructionFetcher.FetchU8()
         {
-            var value = ReadU8(SegmentToAddress(registers[CS], registers[IP]));
-            registers[IP] += 1;
+            var value = ReadU8(SegmentToAddress(GetRegister(Register.CS), GetRegister(Register.IP)));
+            registers[(int)Register.IP] += 1;
             return value;
         }
         ushort IInstructionFetcher.FetchU16()
         {
-            var value = ReadU16(SegmentToAddress(registers[CS], registers[IP]));
-            registers[IP] += 2;
+            var value = ReadU16(SegmentToAddress(GetRegister(Register.CS), GetRegister(Register.IP)));
+            registers[(int)Register.IP] += 2;
             return value;
         }
     }

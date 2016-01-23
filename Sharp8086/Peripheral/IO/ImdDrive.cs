@@ -48,6 +48,11 @@ namespace Sharp8086.Peripheral.IO
 
         public ImdDrive(Stream backing)
         {
+            if (backing == null)
+                throw new ArgumentNullException(nameof(backing));
+            if (!backing.CanRead || !backing.CanSeek)
+                throw new ArgumentException();
+
             var br = new BinaryReader(backing);
 
             var imdHeader = br.ReadBytes(31);

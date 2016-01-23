@@ -34,6 +34,13 @@ namespace Sharp8086.Peripheral.IO
 
         public RawDrive(Stream backing, bool readWrite, bool isFloppyDrive, int sectorSize, int sectors, int cylinders, int heads)
         {
+            if (backing == null)
+                throw new ArgumentNullException(nameof(backing));
+            if (!backing.CanRead)
+                throw new ArgumentException();
+            if (isFloppyDrive && heads != 1 && heads != 2)
+                throw new ArgumentOutOfRangeException(nameof(heads));
+
             this.readWrite = readWrite;
             IsFloppyDrive = isFloppyDrive;
             SectorSize = sectorSize;
@@ -43,7 +50,7 @@ namespace Sharp8086.Peripheral.IO
 
             data = new byte[512 * sectors * cylinders * 2];
             if (backing.Length != data.Length)
-                throw new InvalidOperationException();
+                throw new InvalidDataException();
             backing.Read(data, 0, data.Length);
         }
 

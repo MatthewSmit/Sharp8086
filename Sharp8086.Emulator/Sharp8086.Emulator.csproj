@@ -51,6 +51,10 @@
     </None>
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\Sharp8086.Test\Sharp8086.Test.csproj">
+      <Project>{1E97D603-8F3C-47D2-A005-254AD045C090}</Project>
+      <Name>Sharp8086.Test</Name>
+    </ProjectReference>
     <ProjectReference Include="..\Sharp8086\Sharp8086.csproj">
       <Project>{0644C564-F68E-4252-8B5B-2AA9C7DE3242}</Project>
       <Name>Sharp8086</Name>

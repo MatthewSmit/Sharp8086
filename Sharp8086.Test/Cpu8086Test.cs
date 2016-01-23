@@ -35,10 +35,46 @@ namespace Sharp8086.Test
     public sealed class Cpu8086Test
     {
         [TestMethod]
-        public void TestAdd()
+        public void TestAdd() => RunTest("add");
+        [TestMethod]
+        public void TestBcdcnv() => RunTest("bcdcnv");
+        [TestMethod]
+        public void TestBitwise() => RunTest("bitwise");
+        [TestMethod]
+        public void TestCmpneg() => RunTest("cmpneg");
+        [TestMethod]
+        public void TestControl() => RunTest("control");
+        [TestMethod]
+        public void TestDatatrnf() => RunTest("datatrnf");
+        [TestMethod]
+        public void TestDiv() => RunTest("div");
+        [TestMethod]
+        public void TestInterrupt() => RunTest("interrupt");
+        [TestMethod]
+        public void TestJumpMove() => RunTest("jmpmov");
+        [TestMethod]
+        public void TestJump1() => RunTest("jump1");
+        [TestMethod]
+        public void TestJump2() => RunTest("jump2");
+        [TestMethod]
+        public void TestMultiply() => RunTest("mul");
+        [TestMethod]
+        public void TestRep() => RunTest("rep");
+        [TestMethod]
+        public void TestRotate() => RunTest("rotate");
+        [TestMethod]
+        public void TestSegpr() => RunTest("segpr");
+        [TestMethod]
+        public void TestShifts() => RunTest("shifts");
+        [TestMethod]
+        public void TestStrings() => RunTest("strings");
+        [TestMethod]
+        public void TestSub() => RunTest("sub");
+
+        private static void RunTest(string testFile)
         {
             ICpu cpu;
-            using (var file = File.OpenRead("add"))
+            using (var file = File.OpenRead("CpuBinaries/" + testFile))
                 cpu = new Cpu8086(file, 1024 * 1024);
             cpu.WriteBytes(0, new byte[0x100]);
 
@@ -46,7 +82,7 @@ namespace Sharp8086.Test
             {
             }
 
-            using (var file = File.OpenRead("addResult"))
+            using (var file = File.OpenRead($"CpuBinaries/{testFile}Result"))
             {
                 var goodData = new byte[file.Length];
                 if (file.Read(goodData, 0, goodData.Length) != goodData.Length)
