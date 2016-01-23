@@ -50,14 +50,14 @@ namespace Sharp8086.CPU
             Aas,
             Increment,
             Decrement,
+            JumpRelative,
             Jump,
-            FarJump,
+            JumpFar,
             Group,
             Test,
             Xchg,
             Move,
             Lea,
-            Nop,
             Cbw,
             Cwd,
             CallNearRelative,
@@ -297,33 +297,33 @@ namespace Sharp8086.CPU
             /*0x8C*/ new OpCode(InstructionType.Move,			    OpCodeFlag.HasRM,					    ARG_EW,         ARG_S),
             /*0x8D*/ new OpCode(InstructionType.Lea,			    OpCodeFlag.HasRM,					    ARG_GW,         ARG_M),
             /*0x8E*/ new OpCode(InstructionType.Move,			    OpCodeFlag.HasRM,					    ARG_S,          ARG_EW),
-            /*0x8F*/ new OpCode(InstructionType.Pop,			    OpCodeFlag.HasRM,					    ARG_EW,         ARG_EW),
-            /*0x90*/ new OpCode(InstructionType.Nop,			    OpCodeFlag.None,					    ARG_NONE,       ARG_NONE),
-            /*0x91*/ new OpCode(InstructionType.Xchg,			    OpCodeFlag.None,					    ARG_CX,     ARG_AX),
-            /*0x92*/ new OpCode(InstructionType.Xchg,			    OpCodeFlag.None,					    ARG_DX,     ARG_AX),
-            /*0x93*/ new OpCode(InstructionType.Xchg,			    OpCodeFlag.None,					    ARG_BX,     ARG_AX),
-            /*0x94*/ new OpCode(InstructionType.Xchg,			    OpCodeFlag.None,					    ARG_SP,     ARG_AX),
-            /*0x95*/ new OpCode(InstructionType.Xchg,			    OpCodeFlag.None,					    ARG_BP,     ARG_AX),
-            /*0x96*/ new OpCode(InstructionType.Xchg,			    OpCodeFlag.None,					    ARG_SI,     ARG_AX),
-            /*0x97*/ new OpCode(InstructionType.Xchg,			    OpCodeFlag.None,					    ARG_DI,     ARG_AX),
+            /*0x8F*/ new OpCode(InstructionType.Pop,			    OpCodeFlag.HasRM,					    ARG_EW,         ARG_NONE),
+            /*0x90*/ new OpCode(InstructionType.Xchg,			    OpCodeFlag.None,                        ARG_AX,         ARG_AX),
+            /*0x91*/ new OpCode(InstructionType.Xchg,			    OpCodeFlag.None,					    ARG_CX,         ARG_AX),
+            /*0x92*/ new OpCode(InstructionType.Xchg,			    OpCodeFlag.None,					    ARG_DX,         ARG_AX),
+            /*0x93*/ new OpCode(InstructionType.Xchg,			    OpCodeFlag.None,					    ARG_BX,         ARG_AX),
+            /*0x94*/ new OpCode(InstructionType.Xchg,			    OpCodeFlag.None,					    ARG_SP,         ARG_AX),
+            /*0x95*/ new OpCode(InstructionType.Xchg,			    OpCodeFlag.None,					    ARG_BP,         ARG_AX),
+            /*0x96*/ new OpCode(InstructionType.Xchg,			    OpCodeFlag.None,					    ARG_SI,         ARG_AX),
+            /*0x97*/ new OpCode(InstructionType.Xchg,			    OpCodeFlag.None,					    ARG_DI,         ARG_AX),
             /*0x98*/ new OpCode(InstructionType.Cbw,			    OpCodeFlag.None,					    ARG_NONE,       ARG_NONE),
             /*0x99*/ new OpCode(InstructionType.Cwd,			    OpCodeFlag.None,					    ARG_NONE,       ARG_NONE),
             /*0x9A*/ new OpCode(InstructionType.CallFar,			OpCodeFlag.None,					    ARG_A,          ARG_NONE),
             /*0x9B*/ new OpCode(InstructionType.Wait,			    OpCodeFlag.None,					    ARG_NONE,       ARG_NONE),
-            /*0x9C*/ new OpCode(InstructionType.Push,			    OpCodeFlag.None,					    ARG_FLAGS,  ARG_NONE),
-            /*0x9D*/ new OpCode(InstructionType.Pop,			    OpCodeFlag.None,					    ARG_FLAGS,  ARG_NONE),
+            /*0x9C*/ new OpCode(InstructionType.Push,			    OpCodeFlag.None,                        ARG_FLAGS,      ARG_NONE),
+            /*0x9D*/ new OpCode(InstructionType.Pop,			    OpCodeFlag.None,					    ARG_FLAGS,      ARG_NONE),
             /*0x9E*/ new OpCode(InstructionType.Sahf,			    OpCodeFlag.None,					    ARG_NONE,       ARG_NONE),
             /*0x9F*/ new OpCode(InstructionType.Lahf,			    OpCodeFlag.None,					    ARG_NONE,       ARG_NONE),
-            /*0xA0*/ new OpCode(InstructionType.Move,			    OpCodeFlag.None,					    ARG_AL,     ARG_OB),
-            /*0xA1*/ new OpCode(InstructionType.Move,			    OpCodeFlag.None,					    ARG_AX,     ARG_OW),
+            /*0xA0*/ new OpCode(InstructionType.Move,			    OpCodeFlag.None,					    ARG_AL,         ARG_OB),
+            /*0xA1*/ new OpCode(InstructionType.Move,			    OpCodeFlag.None,					    ARG_AX,         ARG_OW),
             /*0xA2*/ new OpCode(InstructionType.Move,			    OpCodeFlag.Size8,					    ARG_OB,         ARG_AL),
             /*0xA3*/ new OpCode(InstructionType.Move,			    OpCodeFlag.None,					    ARG_OW,         ARG_AX),
             /*0xA4*/ new OpCode(InstructionType.Movs,			    OpCodeFlag.Size8,					    ARG_NONE,       ARG_NONE),
             /*0xA5*/ new OpCode(InstructionType.Movs,			    OpCodeFlag.None,					    ARG_NONE,       ARG_NONE),
             /*0xA6*/ new OpCode(InstructionType.Cmps,			    OpCodeFlag.Size8,					    ARG_NONE,       ARG_NONE),
             /*0xA7*/ new OpCode(InstructionType.Cmps,			    OpCodeFlag.None,					    ARG_NONE,       ARG_NONE),
-            /*0xA8*/ new OpCode(InstructionType.Test,			    OpCodeFlag.Size8,					    ARG_AL,     ARG_IB),
-            /*0xA9*/ new OpCode(InstructionType.Test,			    OpCodeFlag.None,					    ARG_AX,     ARG_IW),
+            /*0xA8*/ new OpCode(InstructionType.Test,			    OpCodeFlag.Size8,					    ARG_AL,         ARG_IB),
+            /*0xA9*/ new OpCode(InstructionType.Test,			    OpCodeFlag.None,					    ARG_AX,         ARG_IW),
             /*0xAA*/ new OpCode(InstructionType.Stos,			    OpCodeFlag.Size8,					    ARG_NONE,       ARG_NONE),
             /*0xAB*/ new OpCode(InstructionType.Stos,			    OpCodeFlag.None,					    ARG_NONE,       ARG_NONE),
             /*0xAC*/ new OpCode(InstructionType.Lods,			    OpCodeFlag.Size8,					    ARG_NONE,       ARG_NONE),
@@ -382,18 +382,18 @@ namespace Sharp8086.CPU
             /*0xE1*/ new OpCode(InstructionType.Loopz,			    OpCodeFlag.Size8,					    ARG_JB,         ARG_NONE),
             /*0xE2*/ new OpCode(InstructionType.Loop,			    OpCodeFlag.Size8,					    ARG_JB,         ARG_NONE),
             /*0xE3*/ new OpCode(InstructionType.Jcxz,			    OpCodeFlag.Size8,					    ARG_JB,         ARG_NONE),
-            /*0xE4*/ new OpCode(InstructionType.In,			        OpCodeFlag.Size8,					    ARG_AL,     ARG_IB),
-            /*0xE5*/ new OpCode(InstructionType.In,			        OpCodeFlag.None,					    ARG_AX,     ARG_IB),
+            /*0xE4*/ new OpCode(InstructionType.In,			        OpCodeFlag.Size8,					    ARG_AL,         ARG_IB),
+            /*0xE5*/ new OpCode(InstructionType.In,			        OpCodeFlag.None,					    ARG_AX,         ARG_IB),
             /*0xE6*/ new OpCode(InstructionType.Out,			    OpCodeFlag.Size8,					    ARG_IB,         ARG_AL),
             /*0xE7*/ new OpCode(InstructionType.Out,			    OpCodeFlag.None,					    ARG_IB,         ARG_AX),
             /*0xE8*/ new OpCode(InstructionType.CallNearRelative,	OpCodeFlag.None,					    ARG_JW,         ARG_NONE),
-            /*0xE9*/ new OpCode(InstructionType.Jump,			    OpCodeFlag.None,					    ARG_JW,         ARG_NONE),
-            /*0xEA*/ new OpCode(InstructionType.FarJump,			OpCodeFlag.None,					    ARG_A,          ARG_NONE),
-            /*0xEB*/ new OpCode(InstructionType.Jump,			    OpCodeFlag.Size8,					    ARG_JB,         ARG_NONE),
-            /*0xEC*/ new OpCode(InstructionType.In,			        OpCodeFlag.Size8,					    ARG_AL,     ARG_DX),
-            /*0xED*/ new OpCode(InstructionType.In,			        OpCodeFlag.None,					    ARG_AX,     ARG_DX),
-            /*0xEE*/ new OpCode(InstructionType.Out,			    OpCodeFlag.Size8,					    ARG_DX,     ARG_AL),
-            /*0xEF*/ new OpCode(InstructionType.Out,			    OpCodeFlag.None,					    ARG_DX,     ARG_AX),
+            /*0xE9*/ new OpCode(InstructionType.JumpRelative,	    OpCodeFlag.None,					    ARG_JW,         ARG_NONE),
+            /*0xEA*/ new OpCode(InstructionType.JumpFar,			OpCodeFlag.None,					    ARG_A,          ARG_NONE),
+            /*0xEB*/ new OpCode(InstructionType.JumpRelative,	    OpCodeFlag.Size8,					    ARG_JB,         ARG_NONE),
+            /*0xEC*/ new OpCode(InstructionType.In,			        OpCodeFlag.Size8,					    ARG_AL,         ARG_DX),
+            /*0xED*/ new OpCode(InstructionType.In,			        OpCodeFlag.None,					    ARG_AX,         ARG_DX),
+            /*0xEE*/ new OpCode(InstructionType.Out,			    OpCodeFlag.Size8,					    ARG_DX,         ARG_AL),
+            /*0xEF*/ new OpCode(InstructionType.Out,			    OpCodeFlag.None,					    ARG_DX,         ARG_AX),
             /*0xF0*/ new OpCode(InstructionType.Prefix,			    OpCodeFlag.None,					    ARG_NONE,       ARG_NONE),
             /*0xF1*/ new OpCode(InstructionType.Invalid,			OpCodeFlag.None,					    ARG_NONE,       ARG_NONE),
             /*0xF2*/ new OpCode(InstructionType.Prefix,			    OpCodeFlag.None,					    ARG_NONE,       ARG_NONE),
@@ -444,7 +444,7 @@ namespace Sharp8086.CPU
 
         private static readonly InstructionType[] opcodeExtensionFf =
         {
-            InstructionType.Increment, InstructionType.Decrement, InstructionType.CallNear, InstructionType.CallFar, InstructionType.Jump, InstructionType.FarJump, InstructionType.Push, InstructionType.Invalid
+            InstructionType.Increment, InstructionType.Decrement, InstructionType.CallNear, InstructionType.CallFar, InstructionType.Jump, InstructionType.JumpFar, InstructionType.Push, InstructionType.Invalid
         };
 
         private const int ARG_AX = (int)Cpu8086.Register.AX;
@@ -463,7 +463,7 @@ namespace Sharp8086.CPU
         private const int ARG_DS = (int)Cpu8086.Register.DS;
 
         private const int ARG_IP = (int)Cpu8086.Register.IP;
-        private const int ARG_FLAGS = (int)Cpu8086.Register.FLAGS;
+        private const int ARG_FLAGS = unchecked((int)Cpu8086.Register.FLAGS);
 
         private const int ARG_AL = unchecked((int)Cpu8086.Register.AL);
         private const int ARG_CL = unchecked((int)Cpu8086.Register.CL);
@@ -569,9 +569,9 @@ namespace Sharp8086.CPU
                 Debug.Assert(instruction.Type != InstructionType.Invalid);
                 var reg = (byte)((rm >> 3) & 7);
                 if (opcode == 0xF6 && reg == 0)
-                    throw new NotImplementedException();
+                    argument2Type = ARG_IB;
                 else if (opcode == 0xF7 && reg == 0)
-                    throw new NotImplementedException();
+                    argument2Type = ARG_IW;
                 else if (opcode == 0xFF && (reg == 3 || reg == 5))
                     argument1Type = ARG_M;
             }

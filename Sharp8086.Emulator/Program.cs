@@ -39,9 +39,6 @@ namespace Sharp8086.Emulator
 
         private static void Main()
         {
-            new Cpu8086Test().TestJump2();
-            return;
-
             InitCpu();
 
             if (SDL.SDL_Init(SDL.SDL_INIT_VIDEO) != 0)
@@ -89,7 +86,7 @@ namespace Sharp8086.Emulator
                 cpu = new Cpu8086(file, 1024 * 1024);
 
             using (var disk = File.OpenRead("TestDisks/Dos6.22.img"))
-                cpu.AttachDevice(new RawDrive(disk, false, true, 512, 18, 80, 2));
+                cpu.AttachDevice(new RawDrive(disk, false, true, 18, 80, 2));
         }
     }
 }

@@ -28,12 +28,11 @@ namespace Sharp8086.Peripheral.IO
 {
     public interface IDrive : IDevice
     {
-        byte[] Read(int offset, int size);
+        byte[] Read(uint offset, uint size);
 
         bool IsFloppyDrive { get; }
-        int SectorSize { get; }
-        int NumberSectors { get; }
-        int NumberHeads { get; }
-        int NumberCylinders { get; }
+        byte NumberSectors { get; }
+        byte NumberHeads { get; }
+        ushort NumberCylinders { get; }
     }
 }

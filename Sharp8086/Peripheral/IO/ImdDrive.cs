@@ -33,17 +33,6 @@ namespace Sharp8086.Peripheral.IO
     /// </summary>
     public sealed class ImdDrive : IDrive
     {
-        private static readonly int[] sectorSizeMap =
-        {
-            0x80,
-            0x100,
-            0x200,
-            0x400,
-            0x800,
-            0x1000,
-            0x2000
-        };
-
         private readonly byte[] data;
 
         public ImdDrive(Stream backing)
@@ -71,23 +60,23 @@ namespace Sharp8086.Peripheral.IO
             // Backup position and scan imd format for sizes
             var position = backing.Position;
 
-            int numberCylinders, numberSectors, sectorSize;
-            GetImdSizes(br, out numberCylinders, out numberSectors, out sectorSize);
+            ushort numberCylinders;
+            byte numberSectors;
+            GetImdSizes(br, out numberCylinders, out numberSectors);
 
             NumberCylinders = numberCylinders;
             NumberSectors = numberSectors;
-            SectorSize = sectorSize;
 
             backing.Position = position;
-            data = new byte[SectorSize * NumberSectors * 2 * NumberCylinders];
+            data = new byte[512 * NumberSectors * 2 * NumberCylinders];
 
             // Read data from imd format
             while (backing.Position < backing.Length)
             {
                 var mode = br.ReadBytes(5);
 
-                var offset = mode[1] * 2 * NumberSectors * SectorSize;
-                offset += mode[2] * NumberSectors * SectorSize;
+                var offset = mode[1] * 2 * NumberSectors * 512;
+                offset += mode[2] * NumberSectors * 512;
 
                 var numberingMap = br.ReadBytes(NumberSectors);
 
@@ -98,12 +87,12 @@ namespace Sharp8086.Peripheral.IO
                     switch (type)
                     {
                         case 0x01:
-                            br.Read(data, offset + sector * SectorSize, SectorSize);
+                            br.Read(data, offset + sector * 512, 512);
                             break;
                         case 0x02:
                             var value = br.ReadByte();
-                            for (var j = 0; j < SectorSize; j++)
-                                data[offset + sector * SectorSize + j] = value;
+                            for (var j = 0; j < 512; j++)
+                                data[offset + sector * 512 + j] = value;
                             break;
                         default:
                             throw new ArgumentOutOfRangeException();
@@ -112,18 +101,17 @@ namespace Sharp8086.Peripheral.IO
             }
         }
 
-        public byte[] Read(int offset, int size)
+        public byte[] Read(uint offset, uint size)
         {
             var buffer = new byte[size];
             Array.Copy(data, offset, buffer, 0, size);
             return buffer;
         }
 
-        private static void GetImdSizes(BinaryReader br, out int numberCylinders, out int numberSectors, out int sectorSize)
+        private static void GetImdSizes(BinaryReader br, out ushort numberCylinders, out byte numberSectors)
         {
             numberCylinders = 0;
-            numberSectors = -1;
-            sectorSize = -1;
+            numberSectors = 0xFF;
 
             var backing = br.BaseStream;
             while (backing.Position < backing.Length)
@@ -141,10 +129,9 @@ namespace Sharp8086.Peripheral.IO
                 }
                 else Debug.Assert(mode[1] == numberCylinders - 1);
 
-                if (numberSectors == -1) numberSectors = mode[3];
+                if (numberSectors == 0xFF) numberSectors = mode[3];
                 else Debug.Assert(numberSectors == mode[3]);
-                if (sectorSize == -1) sectorSize = sectorSizeMap[mode[4]];
-                else Debug.Assert(sectorSize == sectorSizeMap[mode[4]]);
+                Debug.Assert(mode[4] == 2);
 
                 br.ReadBytes(numberSectors);
 
@@ -154,7 +141,7 @@ namespace Sharp8086.Peripheral.IO
                     switch (type)
                     {
                         case 0x01:
-                            backing.Position += sectorSize;
+                            backing.Position += 512;
                             break;
                         case 0x02:
                             backing.Position++;
@@ -168,9 +155,8 @@ namespace Sharp8086.Peripheral.IO
 
         public bool IsFloppyDrive => true;
 
-        public int SectorSize { get; }
-        public int NumberSectors { get; }
-        public int NumberHeads => 2;
-        public int NumberCylinders { get; }
+        public byte NumberSectors { get; }
+        public byte NumberHeads => 2;
+        public ushort NumberCylinders { get; }
     }
 }

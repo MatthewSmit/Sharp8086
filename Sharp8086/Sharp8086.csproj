@@ -41,6 +41,7 @@
     <Reference Include="Microsoft.CSharp" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="CPU\BiosData.cs" />
     <Compile Include="CPU\ConventionalPageController.cs" />
     <Compile Include="CPU\IInstructionFetcher.cs" />
     <Compile Include="CPU\OpCodeManager.cs" />

@@ -39,6 +39,7 @@ cpu	8086
 	pop bp
 %endmacro
 
+%define emulatorSetup emulatorCall 0x01
 %define emulatorRead emulatorCall 0x02
 
 data:
@@ -52,6 +53,18 @@ BiosEntry:
 	mov	ss, sp
 
 	cld
+
+; Fill the bios data area
+	mov ax, biosData
+	emulatorSetup
+	mov ax, 0xF000
+	mov ds, ax
+	mov	ax, 0x40
+	mov	es, ax
+	mov	di, 0
+	mov	si, biosData
+	mov	cx, 256
+	rep movsw
 	
 ; Set up the IVT.
 ; Zero IVT table
@@ -67,8 +80,8 @@ BiosEntry:
 	mov	di, 0
 	mov ax, 0xF000
 	mov ds, ax
-	mov	si, int_table
-	mov	cx, [itbl_size]
+	mov	si, interruptTable
+	mov	cx, [interruptSize]
 	rep	movsb
 
 ; Read boot sector from FDD, and load it into 0:7C00
@@ -89,7 +102,10 @@ BiosEntry:
 
 ; Interrupt handlers
 
+; int 0x00, Divide by Zero
 int0:
+	iret
+
 int1:
 int2:
 int3:
@@ -108,6 +124,7 @@ intf:
 int 3
 iret
 
+; int 0x10, Video
 int10:
 	cmp ah, 0x0E
 	je TeletypeOutput
@@ -178,11 +195,17 @@ TeletypeOutputEnd:
 	
 	iret
 
+; int 0x11, Equipement list
 int11:
-int12:
-int 3
-iret
+	mov ax, [cs:equipment]
+	iret
 
+; int 0x12, Get Memory
+int12:
+	mov ax, [cs:memorySize]
+	iret
+
+; int 0x13, Disk IO
 int13:
 	cmp ah, 0x00
 	je SectorDriveReset
@@ -249,10 +272,38 @@ SectorReadEnd:
 	
 	iret
 
+; int 0x14, Serial Communication
 int14:
+	mov	ax, 0
+	iret
+
 int15:
+int 3
+iret
+
+; int 0x16, Keyboard
 int16:
+	cmp ah, 0x01
+	je KeyboardCheckPress
+	
+	int 3
+	iret
+
+KeyboardCheckPress:
+	xor ax, ax
+	iret
+
+; int 0x17, Printer
 int17:
+	cmp ah, 0x01
+	je PrinterInitialize
+	int 3
+	iret
+
+PrinterInitialize:
+	mov ah, 0x38 ; Printer not attached
+	iret
+
 int18:
 int19:
 int1a:
@@ -266,71 +317,78 @@ iret
 
 ; Interrupt vector table - to copy to 0:0
 
-int_table	dw int0
-          	dw 0xf000
-          	dw int1
-          	dw 0xf000
-          	dw int2
-          	dw 0xf000
-          	dw int3
-          	dw 0xf000
-          	dw int4
-          	dw 0xf000
-          	dw int5
-          	dw 0xf000
-          	dw int6
-          	dw 0xf000
-          	dw int7
-          	dw 0xf000
-          	dw int8
-          	dw 0xf000
-          	dw int9
-          	dw 0xf000
-          	dw inta
-          	dw 0xf000
-          	dw intb
-          	dw 0xf000
-          	dw intc
-          	dw 0xf000
-          	dw intd
-          	dw 0xf000
-          	dw inte
-          	dw 0xf000
-          	dw intf
-          	dw 0xf000
-          	dw int10
-          	dw 0xf000
-          	dw int11
-          	dw 0xf000
-          	dw int12
-          	dw 0xf000
-          	dw int13
-          	dw 0xf000
-          	dw int14
-          	dw 0xf000
-          	dw int15
-          	dw 0xf000
-          	dw int16
-          	dw 0xf000
-          	dw int17
-          	dw 0xf000
-          	dw int18
-          	dw 0xf000
-          	dw int19
-          	dw 0xf000
-          	dw int1a
-          	dw 0xf000
-          	dw int1b
-          	dw 0xf000
-          	dw int1c
-          	dw 0xf000
-          	dw int1d
-          	dw 0xf000
-          	dw int1e
-          	dw 0xf000
-          	dw int1f
+interruptTable	dw int0
+				dw 0xf000
+				dw int1
+				dw 0xf000
+				dw int2
+				dw 0xf000
+				dw int3
+				dw 0xf000
+				dw int4
+				dw 0xf000
+				dw int5
+				dw 0xf000
+				dw int6
+				dw 0xf000
+				dw int7
+				dw 0xf000
+				dw int8
+				dw 0xf000
+				dw int9
+				dw 0xf000
+				dw inta
+				dw 0xf000
+				dw intb
+				dw 0xf000
+				dw intc
+				dw 0xf000
+				dw intd
+				dw 0xf000
+				dw inte
+				dw 0xf000
+				dw intf
+				dw 0xf000
+				dw int10
+				dw 0xf000
+				dw int11
+				dw 0xf000
+				dw int12
+				dw 0xf000
+				dw int13
+				dw 0xf000
+				dw int14
+				dw 0xf000
+				dw int15
+				dw 0xf000
+				dw int16
+				dw 0xf000
+				dw int17
+				dw 0xf000
+				dw int18
+				dw 0xf000
+				dw int19
+				dw 0xf000
+				dw int1a
+				dw 0xf000
+				dw int1b
+				dw 0xf000
+				dw int1c
+				dw 0xf000
+				dw int1d
+				dw 0xf000
+				dw int1e
+				dw 0xf000
+				dw int1f
 
-itbl_size	dw $-int_table
+interruptSize dw $-interruptTable
+
+biosData:
+	times 8 dw 0
+	equipment: dw 0
+	db 0
+	memorySize: dw 0
+	times 0x100-$+biosData db 0x00
 
 ; Fills bios with 0xCC except reset vector
 times 0xFFF0-$+data db 0xCC

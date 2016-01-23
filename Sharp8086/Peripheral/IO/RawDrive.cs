@@ -32,7 +32,7 @@ namespace Sharp8086.Peripheral.IO
         private bool readWrite;
         private readonly byte[] data;
 
-        public RawDrive(Stream backing, bool readWrite, bool isFloppyDrive, int sectorSize, int sectors, int cylinders, int heads)
+        public RawDrive(Stream backing, bool readWrite, bool isFloppyDrive, byte sectors, ushort cylinders, byte heads)
         {
             if (backing == null)
                 throw new ArgumentNullException(nameof(backing));
@@ -43,7 +43,6 @@ namespace Sharp8086.Peripheral.IO
 
             this.readWrite = readWrite;
             IsFloppyDrive = isFloppyDrive;
-            SectorSize = sectorSize;
             NumberSectors = sectors;
             NumberCylinders = cylinders;
             NumberHeads = heads;
@@ -54,7 +53,7 @@ namespace Sharp8086.Peripheral.IO
             backing.Read(data, 0, data.Length);
         }
 
-        public byte[] Read(int offset, int size)
+        public byte[] Read(uint offset, uint size)
         {
             var buffer = new byte[size];
             Array.Copy(data, offset, buffer, 0, size);
@@ -63,9 +62,8 @@ namespace Sharp8086.Peripheral.IO
 
         public bool IsFloppyDrive { get; }
 
-        public int SectorSize { get; }
-        public int NumberSectors { get; }
-        public int NumberHeads { get; }
-        public int NumberCylinders { get; }
+        public byte NumberSectors { get; }
+        public byte NumberHeads { get; }
+        public ushort NumberCylinders { get; }
     }
 }
