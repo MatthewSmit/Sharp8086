@@ -31,6 +31,6 @@ namespace Sharp8086.Core
     public interface IMemoryMappedDevice : IDevice, IPageController
     {
         [NotNull]
-        IEnumerable<Tuple<uint, uint>> MappedMemory { get; }
+        IEnumerable<Tuple<uint, uint>> MappedMemory { [Pure] get; }
     }
 }

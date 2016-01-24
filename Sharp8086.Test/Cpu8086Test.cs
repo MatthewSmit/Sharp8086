@@ -80,12 +80,8 @@ namespace Sharp8086.Test
                 cpu = new Cpu8086(file, 1024 * 1024);
             cpu.WriteBytes(0, new byte[0x100]);
 
-            var count = 0;
-            while (cpu.ProcessInstruction())
-            {
-                if (++count >= 1000)
-                    throw new InvalidOperationException("Test case did not complete in the required amount of time.");
-            }
+            if (cpu.ProcessInstructions(1000))
+                throw new InvalidOperationException("Test case did not complete in the required amount of time.");
 
             using (var file = File.OpenRead($"CpuBinaries/{testFile}Result"))
             {

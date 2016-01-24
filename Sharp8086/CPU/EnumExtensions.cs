@@ -23,23 +23,16 @@
 #endregion
 
 using JetBrains.Annotations;
-using Sharp8086.Core;
 
-namespace Sharp8086.Peripheral.IO
+namespace Sharp8086.CPU
 {
-    [PublicAPI]
-    public interface IDrive : IDevice
+    internal static class EnumExtensions
     {
-        [NotNull, PublicAPI, Pure]
-        byte[] Read(uint offset, uint size);
-
-        [PublicAPI]
-        bool IsFloppyDrive { [Pure] get; }
-        [PublicAPI]
-        byte NumberSectors { [Pure] get; }
-        [PublicAPI]
-        byte NumberHeads { [Pure] get; }
-        [PublicAPI]
-        ushort NumberCylinders { [Pure] get; }
+        [Pure]
+        public static bool Has(this Cpu8086.FlagsRegister flag, Cpu8086.FlagsRegister testFlag) =>
+            (flag & testFlag) != 0;
+        [Pure]
+        public static bool Has(this OpCodeManager.OpCodeFlag flag, OpCodeManager.OpCodeFlag testFlag) =>
+            (flag & testFlag) != 0;
     }
 }

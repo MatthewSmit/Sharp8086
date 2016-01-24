@@ -243,8 +243,15 @@ namespace Sharp8086.CPU
             SetRegister(Register.CS, 0xF000);
             SetRegister(Register.IP, 0xFFF0);
         }
-
-        public bool ProcessInstruction()
+        
+        public bool ProcessInstructions(int amount)
+        {
+            for (var i = 0; i < amount; i++)
+                if (!ProcessSingleInstruction())
+                    return false;
+            return true;
+        }
+        public bool ProcessSingleInstruction()
         {
             string instructionText = $"{GetRegister(Register.CS):X4}:{GetRegister(Register.IP):X4} ";
             var instruction = OpCodeManager.Decode(this);
@@ -451,12 +458,12 @@ namespace Sharp8086.CPU
                             throw new NotImplementedException();
                     }
                     address = SegmentToAddress(GetRegister(segmentPrefix), (ushort)((ushort)address + instructionDisplacement));
-                    return flag.HasFlag(OpCodeManager.OpCodeFlag.Size8) ? ReadU8(address) : ReadU16(address);
+                    return flag.Has(OpCodeManager.OpCodeFlag.Size8) ? ReadU8(address) : ReadU16(address);
 
                 case OpCodeManager.ARG_MEMORY:
                     if (segmentPrefix == Register.Invalid) segmentPrefix = Register.DS;
                     address = SegmentToAddress(GetRegister(segmentPrefix), (ushort)instructionValue);
-                    return flag.HasFlag(OpCodeManager.OpCodeFlag.Size8) ? ReadU8(address) : ReadU16(address);
+                    return flag.Has(OpCodeManager.OpCodeFlag.Size8) ? ReadU8(address) : ReadU16(address);
 
                 case OpCodeManager.ARG_CONSTANT:
                     return (ushort)instructionValue;
@@ -475,6 +482,38 @@ namespace Sharp8086.CPU
             Push(GetRegister(Register.IP));
             SetRegister(Register.IP, ReadU16((uint)interrupt * 4));
             SetRegister(Register.CS, ReadU16((uint)interrupt * 4 + 2));
+        }
+        private ushort CalculateIncrementFlags(bool is8Bit, ushort value1, ushort value2, int result)
+        {
+            ushort truncResult;
+            bool sign;
+            bool overflow;
+            if (is8Bit)
+            {
+                truncResult = (byte)result;
+                sign = ((truncResult >> 7) & 1) == 1;
+                overflow = ((truncResult ^ value1) & (truncResult ^ value2) & 0x80) == 0x80;
+            }
+            else
+            {
+                truncResult = (ushort)result;
+                sign = ((truncResult >> 15) & 1) == 1;
+                overflow = ((truncResult ^ value1) & (truncResult ^ value2) & 0x8000) == 0x8000;
+            }
+            var auxiliary = ((value1 ^ value2 ^ truncResult) & 0x10) != 0;
+            var zero = truncResult == 0;
+            var parity = parityLookup[(byte)(result & 0xFF)];
+
+            var flagsRegister = GetFlags();
+            flagsRegister &= ~(FlagsRegister.Parity | FlagsRegister.Auxiliary | FlagsRegister.Zero | FlagsRegister.Sign | FlagsRegister.Overflow);
+            flagsRegister |= (parity ? FlagsRegister.Parity : 0) |
+                             (auxiliary ? FlagsRegister.Auxiliary : 0) |
+                             (zero ? FlagsRegister.Zero : 0) |
+                             (sign ? FlagsRegister.Sign : 0) |
+                             (overflow ? FlagsRegister.Overflow : 0);
+            SetFlags(flagsRegister);
+
+            return truncResult;
         }
         private ushort CalculateFlags(bool is8Bit, ushort value1, ushort value2, int result)
         {
@@ -503,11 +542,11 @@ namespace Sharp8086.CPU
             var flagsRegister = GetFlags();
             flagsRegister &= ~(FlagsRegister.Carry | FlagsRegister.Parity | FlagsRegister.Auxiliary | FlagsRegister.Zero | FlagsRegister.Sign | FlagsRegister.Overflow);
             flagsRegister |= (carry ? FlagsRegister.Carry : 0) |
-                     (parity ? FlagsRegister.Parity : 0) |
-                     (auxiliary ? FlagsRegister.Auxiliary : 0) |
-                     (zero ? FlagsRegister.Zero : 0) |
-                     (sign ? FlagsRegister.Sign : 0) |
-                     (overflow ? FlagsRegister.Overflow : 0);
+                             (parity ? FlagsRegister.Parity : 0) |
+                             (auxiliary ? FlagsRegister.Auxiliary : 0) |
+                             (zero ? FlagsRegister.Zero : 0) |
+                             (sign ? FlagsRegister.Sign : 0) |
+                             (overflow ? FlagsRegister.Overflow : 0);
             SetFlags(flagsRegister);
 
             return truncResult;
@@ -601,7 +640,7 @@ namespace Sharp8086.CPU
                             throw new NotImplementedException();
                     }
                     address = SegmentToAddress(cpu.GetRegister(segment), (ushort)((ushort)address + instruction.Argument1Displacement));
-                    if (instruction.Flag.HasFlag(OpCodeManager.OpCodeFlag.Size8))
+                    if (instruction.Flag.Has(OpCodeManager.OpCodeFlag.Size8))
                         cpu.WriteU8(address, (byte)value);
                     else cpu.WriteU16(address, value);
                     break;
@@ -610,7 +649,7 @@ namespace Sharp8086.CPU
                     segment = instruction.SegmentPrefix;
                     if (segment == Register.Invalid) segment = Register.DS;
                     address = SegmentToAddress(cpu.GetRegister(segment), (ushort)instruction.Argument1Value);
-                    if (instruction.Flag.HasFlag(OpCodeManager.OpCodeFlag.Size8))
+                    if (instruction.Flag.Has(OpCodeManager.OpCodeFlag.Size8))
                         cpu.WriteU8(address, (byte)value);
                     else cpu.WriteU16(address, value);
                     break;
@@ -624,7 +663,7 @@ namespace Sharp8086.CPU
             var value1 = cpu.GetInstructionValue(instruction.Flag, instruction.SegmentPrefix, instruction.Argument1, instruction.Argument1Value, instruction.Argument1Displacement);
             var value2 = cpu.GetInstructionValue(instruction.Flag, instruction.SegmentPrefix, instruction.Argument2, instruction.Argument2Value, instruction.Argument2Displacement);
 
-            if (instruction.Flag.HasFlag(OpCodeManager.OpCodeFlag.Size8))
+            if (instruction.Flag.Has(OpCodeManager.OpCodeFlag.Size8))
             {
                 value1 &= 0xFF;
                 value2 &= 0xFF;
@@ -634,7 +673,7 @@ namespace Sharp8086.CPU
             switch (instruction.Type)
             {
                 case OpCodeManager.InstructionType.Adc:
-                    result = value1 + value2 + (cpu.GetFlags().HasFlag(FlagsRegister.Carry) ? 1 : 0);
+                    result = value1 + value2 + (cpu.GetFlags().Has(FlagsRegister.Carry) ? 1 : 0);
                     break;
 
                 case OpCodeManager.InstructionType.Add:
@@ -656,7 +695,7 @@ namespace Sharp8086.CPU
                     break;
 
                 case OpCodeManager.InstructionType.Ror:
-                    if (instruction.Flag.HasFlag(OpCodeManager.OpCodeFlag.Size8))
+                    if (instruction.Flag.Has(OpCodeManager.OpCodeFlag.Size8))
                     {
                         const int mask = sizeof(byte) - 1;
                         var shift = value2 & mask;
@@ -671,7 +710,7 @@ namespace Sharp8086.CPU
                     break;
 
                 case OpCodeManager.InstructionType.Sbb:
-                    result = value1 - (value2 + (cpu.GetFlags().HasFlag(FlagsRegister.Carry) ? 1 : 0));
+                    result = value1 - (value2 + (cpu.GetFlags().Has(FlagsRegister.Carry) ? 1 : 0));
                     break;
 
                 case OpCodeManager.InstructionType.Shl:
@@ -694,7 +733,7 @@ namespace Sharp8086.CPU
                     throw new NotImplementedException();
             }
 
-            var truncResult = cpu.CalculateFlags(instruction.Flag.HasFlag(OpCodeManager.OpCodeFlag.Size8), value1, value2, result);
+            var truncResult = cpu.CalculateFlags(instruction.Flag.Has(OpCodeManager.OpCodeFlag.Size8), value1, value2, result);
 
             if (instruction.Type != OpCodeManager.InstructionType.Compare && instruction.Type != OpCodeManager.InstructionType.Test)
             {
@@ -754,7 +793,7 @@ namespace Sharp8086.CPU
                                 throw new NotImplementedException();
                         }
                         address = SegmentToAddress(cpu.GetRegister(segment), (ushort)((ushort)address + instruction.Argument1Displacement));
-                        if (instruction.Flag.HasFlag(OpCodeManager.OpCodeFlag.Size8))
+                        if (instruction.Flag.Has(OpCodeManager.OpCodeFlag.Size8))
                             cpu.WriteU8(address, (byte)truncResult);
                         else cpu.WriteU16(address, truncResult);
                         break;
@@ -763,7 +802,7 @@ namespace Sharp8086.CPU
                         segment = instruction.SegmentPrefix;
                         if (segment == Register.Invalid) segment = Register.DS;
                         address = SegmentToAddress(cpu.GetRegister(segment), (ushort)instruction.Argument1Value);
-                        if (instruction.Flag.HasFlag(OpCodeManager.OpCodeFlag.Size8))
+                        if (instruction.Flag.Has(OpCodeManager.OpCodeFlag.Size8))
                             cpu.WriteU8(address, (byte)truncResult);
                         else cpu.WriteU16(address, truncResult);
                         break;
@@ -775,52 +814,22 @@ namespace Sharp8086.CPU
         }
         private static void DispatchUnaryArithmetic([NotNull] Cpu8086 cpu, OpCodeManager.Instruction instruction)
         {
-            ushort value;
+            var value = cpu.GetInstructionValue(instruction.Flag, instruction.SegmentPrefix, instruction.Argument1, instruction.Argument1Value, instruction.Argument1Displacement);
             int result;
-
-            switch (instruction.Argument1)
-            {
-                case (int)Register.AX:
-                case (int)Register.CX:
-                case (int)Register.DX:
-                case (int)Register.BX:
-                case (int)Register.SP:
-                case (int)Register.BP:
-                case (int)Register.SI:
-                case (int)Register.DI:
-                case (int)Register.IP:
-                case (int)Register.CS:
-                case (int)Register.DS:
-                case (int)Register.ES:
-                case (int)Register.SS:
-                    value = cpu.registers[instruction.Argument1];
-                    break;
-
-                case OpCodeManager.ARG_BYTE_REGISTER:
-                    value = cpu.GetRegisterU8((Register)instruction.Argument1Value);
-                    break;
-
-                case OpCodeManager.ARG_MEMORY:
-                    var segment = instruction.SegmentPrefix;
-                    if (segment == Register.Invalid) segment = Register.DS;
-                    var address = SegmentToAddress(cpu.GetRegister(segment), (ushort)instruction.Argument1Value);
-                    value = instruction.Flag.HasFlag(OpCodeManager.OpCodeFlag.Size8) ? cpu.ReadU8(address) : cpu.ReadU16(address);
-                    break;
-
-                default:
-                    throw new NotImplementedException();
-            }
 
             switch (instruction.Type)
             {
                 case OpCodeManager.InstructionType.Decrement:
                     result = value - 1;
+                    cpu.CalculateIncrementFlags(instruction.Flag.Has(OpCodeManager.OpCodeFlag.Size8), value, 1, result);
                     break;
                 case OpCodeManager.InstructionType.Increment:
                     result = value + 1;
+                    cpu.CalculateIncrementFlags(instruction.Flag.Has(OpCodeManager.OpCodeFlag.Size8), value, 1, result);
                     break;
                 case OpCodeManager.InstructionType.Negate:
                     result = ~value + 1;
+                    cpu.CalculateFlags(instruction.Flag.Has(OpCodeManager.OpCodeFlag.Size8), value, 1, result);
                     break;
                 case OpCodeManager.InstructionType.Not:
                     result = ~value;
@@ -855,7 +864,7 @@ namespace Sharp8086.CPU
                     var segment = instruction.SegmentPrefix;
                     if (segment == Register.Invalid) segment = Register.DS;
                     var address = SegmentToAddress(cpu.GetRegister(segment), (ushort)instruction.Argument1Value);
-                    if (instruction.Flag.HasFlag(OpCodeManager.OpCodeFlag.Size8))
+                    if (instruction.Flag.Has(OpCodeManager.OpCodeFlag.Size8))
                         cpu.WriteU8(address, (byte)result);
                     else cpu.WriteU16(address, (ushort)result);
                     break;
@@ -863,8 +872,6 @@ namespace Sharp8086.CPU
                 default:
                     throw new NotImplementedException();
             }
-
-            cpu.CalculateFlags(instruction.Flag.HasFlag(OpCodeManager.OpCodeFlag.Size8), value, 1, result);
         }
         private static void DispatchLea([NotNull] Cpu8086 cpu, OpCodeManager.Instruction instruction)
         {
@@ -1016,7 +1023,7 @@ namespace Sharp8086.CPU
         {
             var flags = cpu.GetFlags();
             var ax = cpu.GetRegister(Register.AX);
-            if ((ax & 0xF) > 9 || flags.HasFlag(FlagsRegister.Auxiliary))
+            if ((ax & 0xF) > 9 || flags.Has(FlagsRegister.Auxiliary))
             {
                 var al = (byte)(ax & 0xFF);
                 var ah = (byte)((ax >> 8) & 0xFF);
@@ -1038,7 +1045,7 @@ namespace Sharp8086.CPU
         {
             var flags = cpu.GetFlags();
             var ax = cpu.GetRegister(Register.AX);
-            if ((ax & 0xF) > 9 || flags.HasFlag(FlagsRegister.Auxiliary))
+            if ((ax & 0xF) > 9 || flags.Has(FlagsRegister.Auxiliary))
             {
                 var al = (byte)(ax & 0xFF);
                 var ah = (byte)((ax >> 8) & 0xFF);
@@ -1061,9 +1068,9 @@ namespace Sharp8086.CPU
             var al = cpu.GetRegisterU8(Register.AL);
             var oldAl = al;
             var flags = cpu.GetFlags();
-            var oldCarry = flags.HasFlag(FlagsRegister.Carry);
+            var oldCarry = flags.Has(FlagsRegister.Carry);
 
-            if ((al & 0xF) > 9 || flags.HasFlag(FlagsRegister.Auxiliary))
+            if ((al & 0xF) > 9 || flags.Has(FlagsRegister.Auxiliary))
             {
                 al += 6;
                 if (oldCarry || (al < oldAl))
@@ -1093,10 +1100,10 @@ namespace Sharp8086.CPU
             var al = cpu.GetRegisterU8(Register.AL);
             var oldAl = al;
             var flags = cpu.GetFlags();
-            var oldCarry = flags.HasFlag(FlagsRegister.Carry);
+            var oldCarry = flags.Has(FlagsRegister.Carry);
             flags &= ~FlagsRegister.Carry;
 
-            if ((al & 0xF) > 9 || flags.HasFlag(FlagsRegister.Auxiliary))
+            if ((al & 0xF) > 9 || flags.Has(FlagsRegister.Auxiliary))
             {
                 al -= 6;
                 if (oldCarry || (al > oldAl))
@@ -1136,7 +1143,7 @@ namespace Sharp8086.CPU
                     {
                         DispatchOneStringOperation(cpu, instruction);
                         counter--;
-                        if (!cpu.GetFlags().HasFlag(FlagsRegister.Direction))
+                        if (!cpu.GetFlags().Has(FlagsRegister.Direction))
                             break;
                     }
                     break;
@@ -1149,7 +1156,7 @@ namespace Sharp8086.CPU
                         {
                             DispatchOneStringOperation(cpu, instruction);
                             counter--;
-                            if (!cpu.GetFlags().HasFlag(FlagsRegister.Zero))
+                            if (!cpu.GetFlags().Has(FlagsRegister.Zero))
                                 break;
                         }
                     }
@@ -1192,7 +1199,7 @@ namespace Sharp8086.CPU
             ushort value1;
             ushort value2;
             byte size;
-            if (instruction.Flag.HasFlag(OpCodeManager.OpCodeFlag.Size8))
+            if (instruction.Flag.Has(OpCodeManager.OpCodeFlag.Size8))
             {
                 value1 = cpu.ReadU8(SegmentToAddress(cpu.GetRegister(Register.DS), cpu.GetRegister(Register.SI)));
                 value2 = cpu.ReadU8(SegmentToAddress(cpu.GetRegister(Register.ES), cpu.GetRegister(Register.DI)));
@@ -1206,9 +1213,9 @@ namespace Sharp8086.CPU
             }
             var result = value1 - value2;
 
-            cpu.CalculateFlags(instruction.Flag.HasFlag(OpCodeManager.OpCodeFlag.Size8), value1, value2, result);
+            cpu.CalculateFlags(instruction.Flag.Has(OpCodeManager.OpCodeFlag.Size8), value1, value2, result);
 
-            if (!cpu.GetFlags().HasFlag(FlagsRegister.Direction))
+            if (!cpu.GetFlags().Has(FlagsRegister.Direction))
             {
                 cpu.registers[(int)Register.DI] += size;
                 cpu.registers[(int)Register.SI] += size;
@@ -1222,7 +1229,7 @@ namespace Sharp8086.CPU
         private static void DispatchStos([NotNull] Cpu8086 cpu, OpCodeManager.Instruction instruction)
         {
             byte size;
-            if (instruction.Flag.HasFlag(OpCodeManager.OpCodeFlag.Size8))
+            if (instruction.Flag.Has(OpCodeManager.OpCodeFlag.Size8))
             {
                 cpu.WriteU8(SegmentToAddress(cpu.GetRegister(Register.ES), cpu.GetRegister(Register.DI)), (byte)(cpu.GetRegister(Register.AX) & 0xFF));
                 size = 1;
@@ -1233,7 +1240,7 @@ namespace Sharp8086.CPU
                 size = 2;
             }
 
-            if (!cpu.GetFlags().HasFlag(FlagsRegister.Direction))
+            if (!cpu.GetFlags().Has(FlagsRegister.Direction))
                 cpu.registers[(int)Register.DI] += size;
             else cpu.registers[(int)Register.DI] -= size;
         }
@@ -1244,7 +1251,7 @@ namespace Sharp8086.CPU
             var sourceAddress = SegmentToAddress(cpu.GetRegister(prefix), cpu.GetRegister(Register.SI));
 
             byte size;
-            if (instruction.Flag.HasFlag(OpCodeManager.OpCodeFlag.Size8))
+            if (instruction.Flag.Has(OpCodeManager.OpCodeFlag.Size8))
             {
                 var value = cpu.ReadU8(sourceAddress);
                 cpu.SetRegisterU8(Register.AL, value);
@@ -1257,7 +1264,7 @@ namespace Sharp8086.CPU
                 size = 2;
             }
 
-            if (!cpu.GetFlags().HasFlag(FlagsRegister.Direction))
+            if (!cpu.GetFlags().Has(FlagsRegister.Direction))
             {
                 cpu.registers[(int)Register.DI] += size;
                 cpu.registers[(int)Register.SI] += size;
@@ -1273,7 +1280,7 @@ namespace Sharp8086.CPU
             var sourceAddress = SegmentToAddress(cpu.GetRegister(Register.DS), cpu.GetRegister(Register.SI));
             var destAddress = SegmentToAddress(cpu.GetRegister(Register.ES), cpu.GetRegister(Register.DI));
             byte size;
-            if (instruction.Flag.HasFlag(OpCodeManager.OpCodeFlag.Size8))
+            if (instruction.Flag.Has(OpCodeManager.OpCodeFlag.Size8))
             {
                 var value = cpu.ReadU8(sourceAddress);
                 cpu.WriteU8(destAddress, value);
@@ -1286,7 +1293,7 @@ namespace Sharp8086.CPU
                 size = 2;
             }
 
-            if (!cpu.GetFlags().HasFlag(FlagsRegister.Direction))
+            if (!cpu.GetFlags().Has(FlagsRegister.Direction))
             {
                 cpu.registers[(int)Register.DI] += size;
                 cpu.registers[(int)Register.SI] += size;
@@ -1380,13 +1387,13 @@ namespace Sharp8086.CPU
         private static void DispatchLoopZero([NotNull] Cpu8086 cpu, OpCodeManager.Instruction instruction)
         {
             var counter = --cpu.registers[(int)Register.CX];
-            if (counter != 0 && cpu.GetFlags().HasFlag(FlagsRegister.Zero))
+            if (counter != 0 && cpu.GetFlags().Has(FlagsRegister.Zero))
                 DispatchJumpRelative(cpu, instruction);
         }
         private static void DispatchLoopNotZero([NotNull] Cpu8086 cpu, OpCodeManager.Instruction instruction)
         {
             var counter = --cpu.registers[(int)Register.CX];
-            if (counter != 0 && !cpu.GetFlags().HasFlag(FlagsRegister.Zero))
+            if (counter != 0 && !cpu.GetFlags().Has(FlagsRegister.Zero))
                 DispatchJumpRelative(cpu, instruction);
         }
         private static void DispatchIn([NotNull] Cpu8086 cpu, OpCodeManager.Instruction instruction)
@@ -1397,7 +1404,7 @@ namespace Sharp8086.CPU
         {
             var port = cpu.GetInstructionValue(instruction.Flag, instruction.SegmentPrefix, instruction.Argument1, instruction.Argument1Value, instruction.Argument1Displacement);
             var value = cpu.GetInstructionValue(instruction.Flag, instruction.SegmentPrefix, instruction.Argument2, instruction.Argument2Value, instruction.Argument2Displacement);
-            if (instruction.Flag.HasFlag(OpCodeManager.OpCodeFlag.Size8))
+            if (instruction.Flag.Has(OpCodeManager.OpCodeFlag.Size8))
                 cpu.WriteU8((uint)(IO_PORT_OFFSET + port), (byte)value);
             else cpu.WriteU16((uint)(IO_PORT_OFFSET + port), value);
         }
@@ -1435,88 +1442,88 @@ namespace Sharp8086.CPU
         }
         private static void DispatchJumpIfOverflow([NotNull] Cpu8086 cpu, OpCodeManager.Instruction instruction)
         {
-            if (cpu.GetFlags().HasFlag(FlagsRegister.Overflow))
+            if (cpu.GetFlags().Has(FlagsRegister.Overflow))
                 DispatchJumpRelative(cpu, instruction);
         }
         private static void DispatchJumpIfNotOverflow([NotNull] Cpu8086 cpu, OpCodeManager.Instruction instruction)
         {
-            if (!cpu.GetFlags().HasFlag(FlagsRegister.Overflow))
+            if (!cpu.GetFlags().Has(FlagsRegister.Overflow))
                 DispatchJumpRelative(cpu, instruction);
         }
         private static void DispatchJumpIfCarry([NotNull] Cpu8086 cpu, OpCodeManager.Instruction instruction)
         {
-            if (cpu.GetFlags().HasFlag(FlagsRegister.Carry))
+            if (cpu.GetFlags().Has(FlagsRegister.Carry))
                 DispatchJumpRelative(cpu, instruction);
         }
         private static void DispatchJumpIfNotCarry([NotNull] Cpu8086 cpu, OpCodeManager.Instruction instruction)
         {
-            if (!cpu.GetFlags().HasFlag(FlagsRegister.Carry))
+            if (!cpu.GetFlags().Has(FlagsRegister.Carry))
                 DispatchJumpRelative(cpu, instruction);
         }
         private static void DispatchJumpIfZero([NotNull] Cpu8086 cpu, OpCodeManager.Instruction instruction)
         {
-            if (cpu.GetFlags().HasFlag(FlagsRegister.Zero))
+            if (cpu.GetFlags().Has(FlagsRegister.Zero))
                 DispatchJumpRelative(cpu, instruction);
         }
         private static void DispatchJumpIfNotZero([NotNull] Cpu8086 cpu, OpCodeManager.Instruction instruction)
         {
-            if (!cpu.GetFlags().HasFlag(FlagsRegister.Zero))
+            if (!cpu.GetFlags().Has(FlagsRegister.Zero))
                 DispatchJumpRelative(cpu, instruction);
         }
         private static void DispatchJBE([NotNull] Cpu8086 cpu, OpCodeManager.Instruction instruction)
         {
             var flags = cpu.GetFlags();
-            if (flags.HasFlag(FlagsRegister.Carry) || flags.HasFlag(FlagsRegister.Zero))
+            if (flags.Has(FlagsRegister.Carry) || flags.Has(FlagsRegister.Zero))
                 DispatchJumpRelative(cpu, instruction);
         }
         private static void DispatchJA([NotNull] Cpu8086 cpu, OpCodeManager.Instruction instruction)
         {
             var flags = cpu.GetFlags();
-            if (!flags.HasFlag(FlagsRegister.Carry) && !flags.HasFlag(FlagsRegister.Zero))
+            if (!flags.Has(FlagsRegister.Carry) && !flags.Has(FlagsRegister.Zero))
                 DispatchJumpRelative(cpu, instruction);
         }
         private static void DispatchJS([NotNull] Cpu8086 cpu, OpCodeManager.Instruction instruction)
         {
-            if (cpu.GetFlags().HasFlag(FlagsRegister.Sign))
+            if (cpu.GetFlags().Has(FlagsRegister.Sign))
                 DispatchJumpRelative(cpu, instruction);
         }
         private static void DispatchJNS([NotNull] Cpu8086 cpu, OpCodeManager.Instruction instruction)
         {
-            if (!cpu.GetFlags().HasFlag(FlagsRegister.Sign))
+            if (!cpu.GetFlags().Has(FlagsRegister.Sign))
                 DispatchJumpRelative(cpu, instruction);
         }
         private static void DispatchJPE([NotNull] Cpu8086 cpu, OpCodeManager.Instruction instruction)
         {
-            if (cpu.GetFlags().HasFlag(FlagsRegister.Parity))
+            if (cpu.GetFlags().Has(FlagsRegister.Parity))
                 DispatchJumpRelative(cpu, instruction);
         }
         private static void DispatchJLE([NotNull] Cpu8086 cpu, OpCodeManager.Instruction instruction)
         {
             var flags = cpu.GetFlags();
-            if (flags.HasFlag(FlagsRegister.Zero) || flags.HasFlag(FlagsRegister.Sign) != flags.HasFlag(FlagsRegister.Overflow))
+            if (flags.Has(FlagsRegister.Zero) || flags.Has(FlagsRegister.Sign) != flags.Has(FlagsRegister.Overflow))
                 DispatchJumpRelative(cpu, instruction);
         }
         private static void DispatchJPO([NotNull] Cpu8086 cpu, OpCodeManager.Instruction instruction)
         {
-            if (!cpu.GetFlags().HasFlag(FlagsRegister.Parity))
+            if (!cpu.GetFlags().Has(FlagsRegister.Parity))
                 DispatchJumpRelative(cpu, instruction);
         }
         private static void DispatchJL([NotNull] Cpu8086 cpu, OpCodeManager.Instruction instruction)
         {
             var flags = cpu.GetFlags();
-            if (flags.HasFlag(FlagsRegister.Sign) != flags.HasFlag(FlagsRegister.Overflow))
+            if (flags.Has(FlagsRegister.Sign) != flags.Has(FlagsRegister.Overflow))
                 DispatchJumpRelative(cpu, instruction);
         }
         private static void DispatchJGE([NotNull] Cpu8086 cpu, OpCodeManager.Instruction instruction)
         {
             var flags = cpu.GetFlags();
-            if (flags.HasFlag(FlagsRegister.Sign) == flags.HasFlag(FlagsRegister.Overflow))
+            if (flags.Has(FlagsRegister.Sign) == flags.Has(FlagsRegister.Overflow))
                 DispatchJumpRelative(cpu, instruction);
         }
         private static void DispatchJG([NotNull] Cpu8086 cpu, OpCodeManager.Instruction instruction)
         {
             var flags = cpu.GetFlags();
-            if (!flags.HasFlag(FlagsRegister.Zero) && flags.HasFlag(FlagsRegister.Sign) == flags.HasFlag(FlagsRegister.Overflow))
+            if (!flags.Has(FlagsRegister.Zero) && flags.Has(FlagsRegister.Sign) == flags.Has(FlagsRegister.Overflow))
                 DispatchJumpRelative(cpu, instruction);
         }
         private static void DispatchJcxz([NotNull] Cpu8086 cpu, OpCodeManager.Instruction instruction)
@@ -1541,7 +1548,7 @@ namespace Sharp8086.CPU
             var value1 = cpu.GetRegister(Register.AX);
             var value2 = cpu.GetInstructionValue(instruction.Flag, instruction.SegmentPrefix, instruction.Argument1, instruction.Argument1Value, instruction.Argument1Displacement);
 
-            if (instruction.Flag.HasFlag(OpCodeManager.OpCodeFlag.Size8))
+            if (instruction.Flag.Has(OpCodeManager.OpCodeFlag.Size8))
             {
                 value1 &= 0xFF;
                 value2 &= 0xFF;
@@ -1560,21 +1567,21 @@ namespace Sharp8086.CPU
                     throw new ArgumentOutOfRangeException();
             }
 
-            cpu.CalculateFlags(instruction.Flag.HasFlag(OpCodeManager.OpCodeFlag.Size8), value1, value2, (int)result);
+            cpu.CalculateFlags(instruction.Flag.Has(OpCodeManager.OpCodeFlag.Size8), value1, value2, (int)result);
 
             cpu.SetRegister(Register.AX, (ushort)result);
-            if (!instruction.Flag.HasFlag(OpCodeManager.OpCodeFlag.Size8))
+            if (!instruction.Flag.Has(OpCodeManager.OpCodeFlag.Size8))
                 cpu.SetRegister(Register.DX, (ushort)(result >> 16));
         }
         private static void DispatchDivide([NotNull] Cpu8086 cpu, OpCodeManager.Instruction instruction)
         {
             uint value1;
-            if (instruction.Flag.HasFlag(OpCodeManager.OpCodeFlag.Size8))
+            if (instruction.Flag.Has(OpCodeManager.OpCodeFlag.Size8))
                 value1 = cpu.GetRegister(Register.AX);
             else value1 = (uint)cpu.GetRegister(Register.DX) << 16 | cpu.GetRegister(Register.AX);
             var value2 = cpu.GetInstructionValue(instruction.Flag, instruction.SegmentPrefix, instruction.Argument1, instruction.Argument1Value, instruction.Argument1Displacement);
 
-            if (instruction.Flag.HasFlag(OpCodeManager.OpCodeFlag.Size8))
+            if (instruction.Flag.Has(OpCodeManager.OpCodeFlag.Size8))
                 value2 &= 0xFF;
 
             if (value2 == 0)
@@ -1599,13 +1606,13 @@ namespace Sharp8086.CPU
                     throw new ArgumentOutOfRangeException();
             }
 
-            if ((instruction.Flag.HasFlag(OpCodeManager.OpCodeFlag.Size8) && quotient > 0xFF) || (!instruction.Flag.HasFlag(OpCodeManager.OpCodeFlag.Size8) && quotient > 0xFFFF))
+            if ((instruction.Flag.Has(OpCodeManager.OpCodeFlag.Size8) && quotient > 0xFF) || (!instruction.Flag.Has(OpCodeManager.OpCodeFlag.Size8) && quotient > 0xFFFF))
             {
                 cpu.Interrupt(0);
                 return;
             }
 
-            if (instruction.Flag.HasFlag(OpCodeManager.OpCodeFlag.Size8))
+            if (instruction.Flag.Has(OpCodeManager.OpCodeFlag.Size8))
                 cpu.SetRegister(Register.AX, (ushort)((byte)quotient | ((remainder & 0xFF) << 8)));
             else
             {
@@ -1613,7 +1620,7 @@ namespace Sharp8086.CPU
                 cpu.SetRegister(Register.DX, (ushort)remainder);
             }
 
-            cpu.CalculateFlags(instruction.Flag.HasFlag(OpCodeManager.OpCodeFlag.Size8), (ushort)value1, value2, (int)quotient);
+            cpu.CalculateFlags(instruction.Flag.Has(OpCodeManager.OpCodeFlag.Size8), (ushort)value1, value2, (int)quotient);
         }
         private static void DispatchPush([NotNull] Cpu8086 cpu, OpCodeManager.Instruction instruction)
         {
@@ -1866,7 +1873,7 @@ namespace Sharp8086.CPU
                     var address = argumentValue & 0xFFFF;
                     return $"[{segment:X4}:{address:X4}]";
                 case OpCodeManager.ARG_CONSTANT:
-                    return flag.HasFlag(OpCodeManager.OpCodeFlag.Size8) ? $"{argumentValue:X2}" : $"{argumentValue:X4}";
+                    return flag.Has(OpCodeManager.OpCodeFlag.Size8) ? $"{argumentValue:X2}" : $"{argumentValue:X4}";
                 default:
                     throw new NotImplementedException();
             }

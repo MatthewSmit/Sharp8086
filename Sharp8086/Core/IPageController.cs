@@ -22,11 +22,16 @@
 // // SOFTWARE.
 #endregion
 
+using JetBrains.Annotations;
+
 namespace Sharp8086.Core
 {
+    [PublicAPI]
     public interface IPageController
     {
+        [PublicAPI]
         byte ReadU8(uint address);
+        [PublicAPI]
         void WriteU8(uint address, byte value);
     }
 }

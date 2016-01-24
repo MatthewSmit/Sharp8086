@@ -18,7 +18,7 @@
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
     <OutputPath>bin\Debug\</OutputPath>
-    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <DefineConstants>TRACE;DEBUG;CONTRACTS_FULL</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
@@ -47,6 +47,7 @@
   <ItemGroup>
     <Compile Include="CPU\BiosData.cs" />
     <Compile Include="CPU\ConventionalPageController.cs" />
+    <Compile Include="CPU\EnumExtensions.cs" />
     <Compile Include="CPU\IInstructionFetcher.cs" />
     <Compile Include="CPU\OpCodeManager.cs" />
     <Compile Include="Peripheral\Graphics\GraphicsDevice.cs" />
