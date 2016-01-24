@@ -24,11 +24,13 @@
 
 using System;
 using System.Collections.Generic;
+using JetBrains.Annotations;
 
 namespace Sharp8086.Core
 {
     public interface IMemoryMappedDevice : IDevice, IPageController
     {
+        [NotNull]
         IEnumerable<Tuple<uint, uint>> MappedMemory { get; }
     }
 }

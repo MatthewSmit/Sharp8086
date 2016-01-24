@@ -25,6 +25,8 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
+using JetBrains.Annotations;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Sharp8086.Core;
 using Sharp8086.CPU;
@@ -78,8 +80,11 @@ namespace Sharp8086.Test
                 cpu = new Cpu8086(file, 1024 * 1024);
             cpu.WriteBytes(0, new byte[0x100]);
 
+            var count = 0;
             while (cpu.ProcessInstruction())
             {
+                if (++count >= 1000)
+                    throw new InvalidOperationException("Test case did not complete in the required amount of time.");
             }
 
             using (var file = File.OpenRead($"CpuBinaries/{testFile}Result"))
@@ -91,19 +96,24 @@ namespace Sharp8086.Test
                 var testData = cpu.ReadBytes(0, (uint)goodData.Length);
 
                 var result = CompareArrays(goodData, testData);
-                if (result != -1)
-                    throw new InvalidOperationException();
+                if (result.Count > 0)
+                {
+                    var comparison = result.Select(i => new Tuple<int, byte, byte>(i, goodData[i], testData[i])).ToList();
+                    throw new InvalidOperationException("Test case did not produce valid output.");
+                }
             }
         }
 
-        private static int CompareArrays<T>(IReadOnlyList<T> data1, IReadOnlyList<T> data2)
+        [NotNull]
+        private static List<int> CompareArrays<T>(IReadOnlyList<T> data1, IReadOnlyList<T> data2)
         {
-            if (data1.Count != data2.Count)
-                return 0;
+            Assert.AreEqual(data1.Count, data2.Count);
+
+            var list = new List<int>();
             for (var i = 0; i < data1.Count; i++)
                 if (!Equals(data1[i], data2[i]))
-                    return i;
-            return -1;
+                    list.Add(i);
+            return list;
         }
     }
 }

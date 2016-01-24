@@ -25,17 +25,20 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using JetBrains.Annotations;
 
 namespace Sharp8086.Peripheral.IO
 {
     /// <summary>
     /// Reads disks in the ImageDisk format, does not support writing.
     /// </summary>
+    [PublicAPI]
     public sealed class ImdDrive : IDrive
     {
-        private readonly byte[] data;
+        [NotNull] private readonly byte[] data;
 
-        public ImdDrive(Stream backing)
+        [PublicAPI]
+        public ImdDrive([NotNull] Stream backing)
         {
             if (backing == null)
                 throw new ArgumentNullException(nameof(backing));
@@ -108,7 +111,7 @@ namespace Sharp8086.Peripheral.IO
             return buffer;
         }
 
-        private static void GetImdSizes(BinaryReader br, out ushort numberCylinders, out byte numberSectors)
+        private static void GetImdSizes([NotNull] BinaryReader br, out ushort numberCylinders, out byte numberSectors)
         {
             numberCylinders = 0;
             numberSectors = 0xFF;

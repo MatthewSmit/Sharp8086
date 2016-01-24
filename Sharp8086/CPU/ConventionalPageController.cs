@@ -22,15 +22,16 @@
 // // SOFTWARE.
 #endregion
 
+using JetBrains.Annotations;
 using Sharp8086.Core;
 
 namespace Sharp8086.CPU
 {
     internal sealed class ConventionPageController : IPageController
     {
-        private readonly byte[] memory;
+        [NotNull] private readonly byte[] memory;
 
-        public ConventionPageController(byte[] memory)
+        public ConventionPageController([NotNull] byte[] memory)
         {
             this.memory = memory;
         }

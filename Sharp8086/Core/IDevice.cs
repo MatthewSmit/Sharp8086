@@ -22,8 +22,11 @@
 // SOFTWARE.
 #endregion
 
+using JetBrains.Annotations;
+
 namespace Sharp8086.Core
 {
+    [PublicAPI]
     public interface IDevice
     {
     }

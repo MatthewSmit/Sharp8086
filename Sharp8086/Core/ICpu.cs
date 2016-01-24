@@ -22,18 +22,25 @@
 // SOFTWARE.
 #endregion
 
+using JetBrains.Annotations;
+
 namespace Sharp8086.Core
 {
+    [PublicAPI]
     public interface ICpu
     {
         /// <summary>
         /// Executes one instruction
         /// </summary>
         /// <returns>Returns true until the cpu halts</returns>
+        [PublicAPI]
         bool ProcessInstruction();
-        void AttachDevice(IDevice device);
+        [PublicAPI]
+        void AttachDevice([NotNull] IDevice device);
 
+        [NotNull, PublicAPI]
         byte[] ReadBytes(uint address, uint size);
-        void WriteBytes(uint address, byte[] value);
+        [PublicAPI]
+        void WriteBytes(uint address, [NotNull] byte[] value);
     }
 }

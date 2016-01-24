@@ -24,15 +24,18 @@
 
 using System;
 using System.IO;
+using JetBrains.Annotations;
 
 namespace Sharp8086.Peripheral.IO
 {
+    [PublicAPI]
     public sealed class RawDrive : IDrive
     {
         private bool readWrite;
-        private readonly byte[] data;
+        [NotNull] private readonly byte[] data;
 
-        public RawDrive(Stream backing, bool readWrite, bool isFloppyDrive, byte sectors, ushort cylinders, byte heads)
+        [PublicAPI]
+        public RawDrive([NotNull] Stream backing, bool readWrite, bool isFloppyDrive, byte sectors, ushort cylinders, byte heads)
         {
             if (backing == null)
                 throw new ArgumentNullException(nameof(backing));

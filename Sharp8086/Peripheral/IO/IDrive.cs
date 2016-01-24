@@ -22,17 +22,24 @@
 // // SOFTWARE.
 #endregion
 
+using JetBrains.Annotations;
 using Sharp8086.Core;
 
 namespace Sharp8086.Peripheral.IO
 {
+    [PublicAPI]
     public interface IDrive : IDevice
     {
+        [NotNull, PublicAPI]
         byte[] Read(uint offset, uint size);
 
+        [PublicAPI]
         bool IsFloppyDrive { get; }
+        [PublicAPI]
         byte NumberSectors { get; }
+        [PublicAPI]
         byte NumberHeads { get; }
+        [PublicAPI]
         ushort NumberCylinders { get; }
     }
 }

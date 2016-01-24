@@ -24,6 +24,7 @@
 
 using System;
 using System.Diagnostics;
+using JetBrains.Annotations;
 
 namespace Sharp8086.CPU
 {
@@ -121,9 +122,9 @@ namespace Sharp8086.CPU
             Not,
             Negate,
             Multiply,
-            IMultiply,
+            SignedMultiply,
             Divide,
-            IDivide,
+            SignedDivide,
             EmulatorSpecial
         }
 
@@ -434,7 +435,7 @@ namespace Sharp8086.CPU
 
         private static readonly InstructionType[] opcodeExtensionF6 =
         {
-            InstructionType.Test, InstructionType.Invalid, InstructionType.Not, InstructionType.Negate, InstructionType.Multiply, InstructionType.IMultiply, InstructionType.Divide, InstructionType.IDivide
+            InstructionType.Test, InstructionType.Invalid, InstructionType.Not, InstructionType.Negate, InstructionType.Multiply, InstructionType.SignedMultiply, InstructionType.Divide, InstructionType.SignedDivide
         };
 
         private static readonly InstructionType[] opcodeExtensionFe =
@@ -498,7 +499,8 @@ namespace Sharp8086.CPU
 
         public struct Instruction
         {
-            public byte Prefix;
+            public Cpu8086.Register SegmentPrefix;
+            public byte OpcodePrefix;
             public InstructionType Type;
             public OpCodeFlag Flag;
 
@@ -510,33 +512,35 @@ namespace Sharp8086.CPU
             public int Argument2Displacement;
         }
 
-        public static Instruction Decode(IInstructionFetcher fetcher)
+        public static Instruction Decode([NotNull] IInstructionFetcher fetcher)
         {
             Instruction instruction;
 
             var opcode = fetcher.FetchU8();
             instruction.Type = opCodes[opcode].Type;
+            instruction.SegmentPrefix = Cpu8086.Register.Invalid;
+            instruction.OpcodePrefix = 0;
 
-            if (instruction.Type == InstructionType.Prefix)
+            while (instruction.Type == InstructionType.Prefix)
             {
                 switch (opcode)
                 {
                     case 0x26:
-                        instruction.Prefix = ARG_ES;
+                        instruction.SegmentPrefix = Cpu8086.Register.ES;
                         break;
                     case 0x2E:
-                        instruction.Prefix = ARG_CS;
+                        instruction.SegmentPrefix = Cpu8086.Register.CS;
                         break;
                     case 0x36:
-                        instruction.Prefix = ARG_SS;
+                        instruction.SegmentPrefix = Cpu8086.Register.SS;
                         break;
                     case 0x3E:
-                        instruction.Prefix = ARG_DS;
+                        instruction.SegmentPrefix = Cpu8086.Register.DS;
                         break;
                     case 0xF0:
                     case 0xF2:
                     case 0xF3:
-                        instruction.Prefix = opcode;
+                        instruction.OpcodePrefix = opcode;
                         break;
                     default:
                         throw new NotImplementedException();
@@ -544,10 +548,7 @@ namespace Sharp8086.CPU
 
                 opcode = fetcher.FetchU8();
                 instruction.Type = opCodes[opcode].Type;
-
-                Debug.Assert(instruction.Type != InstructionType.Prefix);
             }
-            else instruction.Prefix = 0;
             if (instruction.Type == InstructionType.EmulatorSpecial)
             {
                 var opcode2 = fetcher.FetchU8();
@@ -576,13 +577,13 @@ namespace Sharp8086.CPU
                     argument1Type = ARG_M;
             }
 
-            ParseArgument(fetcher, out instruction.Argument1, out instruction.Argument1Value, out instruction.Argument1Displacement, argument1Type, rm);
-            ParseArgument(fetcher, out instruction.Argument2, out instruction.Argument2Value, out instruction.Argument2Displacement, argument2Type, rm);
+            ParseArgument(fetcher, instruction.Flag, out instruction.Argument1, out instruction.Argument1Value, out instruction.Argument1Displacement, argument1Type, rm);
+            ParseArgument(fetcher, instruction.Flag, out instruction.Argument2, out instruction.Argument2Value, out instruction.Argument2Displacement, argument2Type, rm);
 
             return instruction;
         }
 
-        private static void ParseArgument(IInstructionFetcher fetcher, out int argument, out int argumentValue, out int argumentDisplacement, int argumentType, byte modrm)
+        private static void ParseArgument([NotNull] IInstructionFetcher fetcher, OpCodeFlag flag, out int argument, out int argumentValue, out int argumentDisplacement, int argumentType, byte modrm)
         {
             var mod = (byte)((modrm >> 6) & 7);
             var reg = (byte)((modrm >> 3) & 7);
@@ -638,6 +639,8 @@ namespace Sharp8086.CPU
                     argument = ARG_CONSTANT;
                     argumentValue = fetcher.FetchU8();
                     argumentDisplacement = ARG_NONE;
+                    if (flag.HasFlag(OpCodeFlag.Signed))
+                        argumentValue = (sbyte)(byte)argumentValue;
                     break;
                 case ARG_IW:
                     argument = ARG_CONSTANT;
