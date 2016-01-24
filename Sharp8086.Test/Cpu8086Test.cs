@@ -73,7 +73,7 @@ namespace Sharp8086.Test
         [TestMethod]
         public void TestSub() => RunTest("sub");
 
-        private static void RunTest(string testFile)
+        private static void RunTest([NotNull] string testFile)
         {
             ICpu cpu;
             using (var file = File.OpenRead("CpuBinaries/" + testFile))
