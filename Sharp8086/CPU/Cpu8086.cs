@@ -243,7 +243,7 @@ namespace Sharp8086.CPU
             SetRegister(Register.CS, 0xF000);
             SetRegister(Register.IP, 0xFFF0);
         }
-        
+
         public bool ProcessInstructions(int amount)
         {
             for (var i = 0; i < amount; i++)
@@ -483,71 +483,176 @@ namespace Sharp8086.CPU
             SetRegister(Register.IP, ReadU16((uint)interrupt * 4));
             SetRegister(Register.CS, ReadU16((uint)interrupt * 4 + 2));
         }
-        private ushort CalculateIncrementFlags(bool is8Bit, ushort value1, ushort value2, int result)
+
+        private void CalculateIncFlags8Bit(byte value1, byte value2, int result)
         {
-            ushort truncResult;
-            bool sign;
-            bool overflow;
-            if (is8Bit)
-            {
-                truncResult = (byte)result;
-                sign = ((truncResult >> 7) & 1) == 1;
-                overflow = ((truncResult ^ value1) & (truncResult ^ value2) & 0x80) == 0x80;
-            }
-            else
-            {
-                truncResult = (ushort)result;
-                sign = ((truncResult >> 15) & 1) == 1;
-                overflow = ((truncResult ^ value1) & (truncResult ^ value2) & 0x8000) == 0x8000;
-            }
+            var truncResult = (byte)result;
+            var sign = ((truncResult >> 7) & 1) == 1;
+            var overflow = ((truncResult ^ value1) & (truncResult ^ value2) & 0x80) == 0x80;
             var auxiliary = ((value1 ^ value2 ^ truncResult) & 0x10) != 0;
             var zero = truncResult == 0;
             var parity = parityLookup[(byte)(result & 0xFF)];
 
-            var flagsRegister = GetFlags();
-            flagsRegister &= ~(FlagsRegister.Parity | FlagsRegister.Auxiliary | FlagsRegister.Zero | FlagsRegister.Sign | FlagsRegister.Overflow);
-            flagsRegister |= (parity ? FlagsRegister.Parity : 0) |
-                             (auxiliary ? FlagsRegister.Auxiliary : 0) |
-                             (zero ? FlagsRegister.Zero : 0) |
-                             (sign ? FlagsRegister.Sign : 0) |
-                             (overflow ? FlagsRegister.Overflow : 0);
-            SetFlags(flagsRegister);
+            flags &= ~(FlagsRegister.Parity | FlagsRegister.Auxiliary | FlagsRegister.Zero | FlagsRegister.Sign | FlagsRegister.Overflow);
+            flags |= (parity ? FlagsRegister.Parity : 0) |
+                     (auxiliary ? FlagsRegister.Auxiliary : 0) |
+                     (zero ? FlagsRegister.Zero : 0) |
+                     (sign ? FlagsRegister.Sign : 0) |
+                     (overflow ? FlagsRegister.Overflow : 0);
+        }
+        private void CalculateIncFlags16Bit(ushort value1, ushort value2, int result)
+        {
+            var truncResult = (ushort)result;
+            var sign = ((truncResult >> 15) & 1) == 1;
+            var overflow = ((truncResult ^ value1) & (truncResult ^ value2) & 0x8000) == 0x8000;
+            var auxiliary = ((value1 ^ value2 ^ truncResult) & 0x10) != 0;
+            var zero = truncResult == 0;
+            var parity = parityLookup[(byte)(result & 0xFF)];
+
+            flags &= ~(FlagsRegister.Parity | FlagsRegister.Auxiliary | FlagsRegister.Zero | FlagsRegister.Sign | FlagsRegister.Overflow);
+            flags |= (parity ? FlagsRegister.Parity : 0) |
+                     (auxiliary ? FlagsRegister.Auxiliary : 0) |
+                     (zero ? FlagsRegister.Zero : 0) |
+                     (sign ? FlagsRegister.Sign : 0) |
+                     (overflow ? FlagsRegister.Overflow : 0);
+        }
+        private void CalculateDecFlags8Bit(byte value1, byte value2, int result)
+        {
+            var truncResult = (byte)result;
+            var sign = ((truncResult >> 7) & 1) == 1;
+            var overflow = ((truncResult ^ value1) & (value1 ^ value2) & 0x80) == 0x80;
+            var auxiliary = ((value1 ^ value2 ^ truncResult) & 0x10) != 0;
+            var zero = truncResult == 0;
+            var parity = parityLookup[(byte)(result & 0xFF)];
+
+            flags &= ~(FlagsRegister.Parity | FlagsRegister.Auxiliary | FlagsRegister.Zero | FlagsRegister.Sign | FlagsRegister.Overflow);
+            flags |= (parity ? FlagsRegister.Parity : 0) |
+                     (auxiliary ? FlagsRegister.Auxiliary : 0) |
+                     (zero ? FlagsRegister.Zero : 0) |
+                     (sign ? FlagsRegister.Sign : 0) |
+                     (overflow ? FlagsRegister.Overflow : 0);
+        }
+        private void CalculateDecFlags16Bit(ushort value1, ushort value2, int result)
+        {
+            var truncResult = (ushort)result;
+            var sign = ((truncResult >> 15) & 1) == 1;
+            var overflow = ((truncResult ^ value1) & (value1 ^ value2) & 0x8000) == 0x8000;
+            var auxiliary = ((value1 ^ value2 ^ truncResult) & 0x10) != 0;
+            var zero = truncResult == 0;
+            var parity = parityLookup[(byte)(result & 0xFF)];
+
+            flags &= ~(FlagsRegister.Parity | FlagsRegister.Auxiliary | FlagsRegister.Zero | FlagsRegister.Sign | FlagsRegister.Overflow);
+            flags |= (parity ? FlagsRegister.Parity : 0) |
+                     (auxiliary ? FlagsRegister.Auxiliary : 0) |
+                     (zero ? FlagsRegister.Zero : 0) |
+                     (sign ? FlagsRegister.Sign : 0) |
+                     (overflow ? FlagsRegister.Overflow : 0);
+        }
+        private byte CalculateBitwiseFlags8Bit(byte value1, byte value2, int result)
+        {
+            var truncResult = (byte)result;
+            var sign = ((truncResult >> 7) & 1) == 1;
+            var zero = truncResult == 0;
+            var parity = parityLookup[(byte)(result & 0xFF)];
+
+            flags &= ~(FlagsRegister.Carry | FlagsRegister.Parity | FlagsRegister.Zero | FlagsRegister.Sign | FlagsRegister.Overflow);
+            flags |= (parity ? FlagsRegister.Parity : 0) |
+                     (zero ? FlagsRegister.Zero : 0) |
+                     (sign ? FlagsRegister.Sign : 0);
 
             return truncResult;
         }
-        private ushort CalculateFlags(bool is8Bit, ushort value1, ushort value2, int result)
+        private ushort CalculateBitwiseFlags16Bit(ushort value1, ushort value2, int result)
         {
-            ushort truncResult;
-            bool carry;
-            bool sign;
-            bool overflow;
-            if (is8Bit)
-            {
-                truncResult = (byte)result;
-                carry = (uint)result > 0xFF;
-                sign = ((truncResult >> 7) & 1) == 1;
-                overflow = ((truncResult ^ value1) & (truncResult ^ value2) & 0x80) == 0x80;
-            }
-            else
-            {
-                truncResult = (ushort)result;
-                carry = (uint)result > 0xFFFF;
-                sign = ((truncResult >> 15) & 1) == 1;
-                overflow = ((truncResult ^ value1) & (truncResult ^ value2) & 0x8000) == 0x8000;
-            }
+            var truncResult = (ushort)result;
+            var sign = ((truncResult >> 15) & 1) == 1;
+            var zero = truncResult == 0;
+            var parity = parityLookup[(byte)(result & 0xFF)];
+
+            flags &= ~(FlagsRegister.Carry | FlagsRegister.Parity | FlagsRegister.Zero | FlagsRegister.Sign | FlagsRegister.Overflow);
+            flags |= (parity ? FlagsRegister.Parity : 0) |
+                     (zero ? FlagsRegister.Zero : 0) |
+                     (sign ? FlagsRegister.Sign : 0);
+
+            return truncResult;
+        }
+        private byte CalculateAddFlags8Bit(byte value1, byte value2, int result)
+        {
+            var truncResult = (byte)result;
+            var carry = (uint)result > 0xFF;
+            var sign = ((truncResult >> 7) & 1) == 1;
+            var overflow = ((truncResult ^ value1) & (truncResult ^ value2) & 0x80) == 0x80;
             var auxiliary = ((value1 ^ value2 ^ truncResult) & 0x10) != 0;
             var zero = truncResult == 0;
             var parity = parityLookup[(byte)(result & 0xFF)];
 
-            var flagsRegister = GetFlags();
-            flagsRegister &= ~(FlagsRegister.Carry | FlagsRegister.Parity | FlagsRegister.Auxiliary | FlagsRegister.Zero | FlagsRegister.Sign | FlagsRegister.Overflow);
-            flagsRegister |= (carry ? FlagsRegister.Carry : 0) |
-                             (parity ? FlagsRegister.Parity : 0) |
-                             (auxiliary ? FlagsRegister.Auxiliary : 0) |
-                             (zero ? FlagsRegister.Zero : 0) |
-                             (sign ? FlagsRegister.Sign : 0) |
-                             (overflow ? FlagsRegister.Overflow : 0);
-            SetFlags(flagsRegister);
+            flags &= ~(FlagsRegister.Carry | FlagsRegister.Parity | FlagsRegister.Auxiliary | FlagsRegister.Zero | FlagsRegister.Sign | FlagsRegister.Overflow);
+            flags |= (carry ? FlagsRegister.Carry : 0) |
+                     (parity ? FlagsRegister.Parity : 0) |
+                     (auxiliary ? FlagsRegister.Auxiliary : 0) |
+                     (zero ? FlagsRegister.Zero : 0) |
+                     (sign ? FlagsRegister.Sign : 0) |
+                     (overflow ? FlagsRegister.Overflow : 0);
+
+            return truncResult;
+        }
+        private ushort CalculateAddFlags16Bit(ushort value1, ushort value2, int result)
+        {
+            var truncResult = (ushort)result;
+            var carry = (uint)result > 0xFFFF;
+            var sign = ((truncResult >> 15) & 1) == 1;
+            var overflow = ((truncResult ^ value1) & (truncResult ^ value2) & 0x8000) == 0x8000;
+            var auxiliary = ((value1 ^ value2 ^ truncResult) & 0x10) != 0;
+            var zero = truncResult == 0;
+            var parity = parityLookup[(byte)(result & 0xFF)];
+
+            flags &= ~(FlagsRegister.Carry | FlagsRegister.Parity | FlagsRegister.Auxiliary | FlagsRegister.Zero | FlagsRegister.Sign | FlagsRegister.Overflow);
+            flags |= (carry ? FlagsRegister.Carry : 0) |
+                     (parity ? FlagsRegister.Parity : 0) |
+                     (auxiliary ? FlagsRegister.Auxiliary : 0) |
+                     (zero ? FlagsRegister.Zero : 0) |
+                     (sign ? FlagsRegister.Sign : 0) |
+                     (overflow ? FlagsRegister.Overflow : 0);
+
+            return truncResult;
+        }
+        private byte CalculateSubFlags8Bit(byte value1, byte value2, int result)
+        {
+            var truncResult = (byte)result;
+            var carry = (uint)result > 0xFF;
+            var sign = ((truncResult >> 7) & 1) == 1;
+            var overflow = ((truncResult ^ value1) & (value1 ^ value2) & 0x80) == 0x80;
+            var auxiliary = ((value1 ^ value2 ^ truncResult) & 0x10) != 0;
+            var zero = truncResult == 0;
+            var parity = parityLookup[(byte)(result & 0xFF)];
+
+            flags &= ~(FlagsRegister.Carry | FlagsRegister.Parity | FlagsRegister.Auxiliary | FlagsRegister.Zero | FlagsRegister.Sign | FlagsRegister.Overflow);
+            flags |= (carry ? FlagsRegister.Carry : 0) |
+                     (parity ? FlagsRegister.Parity : 0) |
+                     (auxiliary ? FlagsRegister.Auxiliary : 0) |
+                     (zero ? FlagsRegister.Zero : 0) |
+                     (sign ? FlagsRegister.Sign : 0) |
+                     (overflow ? FlagsRegister.Overflow : 0);
+
+            return truncResult;
+        }
+        private ushort CalculateSubFlags16Bit(ushort value1, ushort value2, int result)
+        {
+            var truncResult = (ushort)result;
+            var carry = (uint)result > 0xFFFF;
+            var sign = ((truncResult >> 15) & 1) == 1;
+            var overflow = ((truncResult ^ value1) & (value1 ^ value2) & 0x8000) == 0x8000;
+            var auxiliary = ((value1 ^ value2 ^ truncResult) & 0x10) != 0;
+            var zero = truncResult == 0;
+            var parity = parityLookup[(byte)(result & 0xFF)];
+
+            flags &= ~(FlagsRegister.Carry | FlagsRegister.Parity | FlagsRegister.Auxiliary | FlagsRegister.Zero | FlagsRegister.Sign | FlagsRegister.Overflow);
+            flags |= (carry ? FlagsRegister.Carry : 0) |
+                     (parity ? FlagsRegister.Parity : 0) |
+                     (auxiliary ? FlagsRegister.Auxiliary : 0) |
+                     (zero ? FlagsRegister.Zero : 0) |
+                     (sign ? FlagsRegister.Sign : 0) |
+                     (overflow ? FlagsRegister.Overflow : 0);
 
             return truncResult;
         }
@@ -674,24 +779,39 @@ namespace Sharp8086.CPU
             {
                 case OpCodeManager.InstructionType.Adc:
                     result = value1 + value2 + (cpu.GetFlags().Has(FlagsRegister.Carry) ? 1 : 0);
+                    if (instruction.Flag.Has(OpCodeManager.OpCodeFlag.Size8))
+                        cpu.CalculateAddFlags8Bit((byte)value1, (byte)value2, result);
+                    else cpu.CalculateAddFlags16Bit(value1, value2, result);
                     break;
 
                 case OpCodeManager.InstructionType.Add:
                     result = value1 + value2;
+                    if (instruction.Flag.Has(OpCodeManager.OpCodeFlag.Size8))
+                        cpu.CalculateAddFlags8Bit((byte)value1, (byte)value2, result);
+                    else cpu.CalculateAddFlags16Bit(value1, value2, result);
                     break;
 
                 case OpCodeManager.InstructionType.And:
                 case OpCodeManager.InstructionType.Test:
                     result = value1 & value2;
+                    if (instruction.Flag.Has(OpCodeManager.OpCodeFlag.Size8))
+                        cpu.CalculateBitwiseFlags8Bit((byte)value1, (byte)value2, result);
+                    else cpu.CalculateBitwiseFlags16Bit(value1, value2, result);
                     break;
 
                 case OpCodeManager.InstructionType.Compare:
                 case OpCodeManager.InstructionType.Subtract:
                     result = value1 - value2;
+                    if (instruction.Flag.Has(OpCodeManager.OpCodeFlag.Size8))
+                        cpu.CalculateSubFlags8Bit((byte)value1, (byte)value2, result);
+                    else cpu.CalculateSubFlags16Bit(value1, value2, result);
                     break;
 
                 case OpCodeManager.InstructionType.Or:
                     result = value1 | value2;
+                    if (instruction.Flag.Has(OpCodeManager.OpCodeFlag.Size8))
+                        cpu.CalculateBitwiseFlags8Bit((byte)value1, (byte)value2, result);
+                    else cpu.CalculateBitwiseFlags16Bit(value1, value2, result);
                     break;
 
                 case OpCodeManager.InstructionType.Rol:
@@ -707,6 +827,9 @@ namespace Sharp8086.CPU
                         var shift = value2 & mask;
                         result = (ushort)(value1 << shift) | (ushort)(value1 >> (-shift & mask));
                     }
+                    if (instruction.Flag.Has(OpCodeManager.OpCodeFlag.Size8))
+                        cpu.CalculateBitwiseFlags8Bit((byte)value1, (byte)value2, result);
+                    else cpu.CalculateBitwiseFlags16Bit(value1, value2, result);
                     break;
 
                 case OpCodeManager.InstructionType.Ror:
@@ -722,33 +845,51 @@ namespace Sharp8086.CPU
                         var shift = value2 & mask;
                         result = (ushort)(value1 >> shift) | (ushort)(value1 << (-shift & mask));
                     }
+                    if (instruction.Flag.Has(OpCodeManager.OpCodeFlag.Size8))
+                        cpu.CalculateBitwiseFlags8Bit((byte)value1, (byte)value2, result);
+                    else cpu.CalculateBitwiseFlags16Bit(value1, value2, result);
                     break;
 
                 case OpCodeManager.InstructionType.Sbb:
                     result = value1 - (value2 + (cpu.GetFlags().Has(FlagsRegister.Carry) ? 1 : 0));
+                    if (instruction.Flag.Has(OpCodeManager.OpCodeFlag.Size8))
+                        cpu.CalculateSubFlags8Bit((byte)value1, (byte)value2, result);
+                    else cpu.CalculateSubFlags16Bit(value1, value2, result);
                     break;
 
                 case OpCodeManager.InstructionType.Shl:
                     result = value1 << value2;
+                    if (instruction.Flag.Has(OpCodeManager.OpCodeFlag.Size8))
+                        cpu.CalculateBitwiseFlags8Bit((byte)value1, (byte)value2, result);
+                    else cpu.CalculateBitwiseFlags16Bit(value1, value2, result);
                     break;
 
                 case OpCodeManager.InstructionType.Sar:
                     result = (short)value1 >> value2;
+                    if (instruction.Flag.Has(OpCodeManager.OpCodeFlag.Size8))
+                        cpu.CalculateBitwiseFlags8Bit((byte)value1, (byte)value2, result);
+                    else cpu.CalculateBitwiseFlags16Bit(value1, value2, result);
                     break;
 
                 case OpCodeManager.InstructionType.Shr:
                     result = value1 >> value2;
+                    if (instruction.Flag.Has(OpCodeManager.OpCodeFlag.Size8))
+                        cpu.CalculateBitwiseFlags8Bit((byte)value1, (byte)value2, result);
+                    else cpu.CalculateBitwiseFlags16Bit(value1, value2, result);
                     break;
 
                 case OpCodeManager.InstructionType.Xor:
                     result = value1 ^ value2;
+                    if (instruction.Flag.Has(OpCodeManager.OpCodeFlag.Size8))
+                        cpu.CalculateBitwiseFlags8Bit((byte)value1, (byte)value2, result);
+                    else cpu.CalculateBitwiseFlags16Bit(value1, value2, result);
                     break;
 
                 default:
                     throw new NotImplementedException();
             }
 
-            var truncResult = cpu.CalculateFlags(instruction.Flag.Has(OpCodeManager.OpCodeFlag.Size8), value1, value2, result);
+            var truncResult = instruction.Flag.Has(OpCodeManager.OpCodeFlag.Size8) ? (byte)result : (ushort)result;
 
             if (instruction.Type != OpCodeManager.InstructionType.Compare && instruction.Type != OpCodeManager.InstructionType.Test)
             {
@@ -836,15 +977,21 @@ namespace Sharp8086.CPU
             {
                 case OpCodeManager.InstructionType.Decrement:
                     result = value - 1;
-                    cpu.CalculateIncrementFlags(instruction.Flag.Has(OpCodeManager.OpCodeFlag.Size8), value, 1, result);
+                    if (instruction.Flag.Has(OpCodeManager.OpCodeFlag.Size8))
+                        cpu.CalculateDecFlags8Bit((byte)value, 1, result);
+                    else cpu.CalculateDecFlags16Bit(value, 1, result);
                     break;
                 case OpCodeManager.InstructionType.Increment:
                     result = value + 1;
-                    cpu.CalculateIncrementFlags(instruction.Flag.Has(OpCodeManager.OpCodeFlag.Size8), value, 1, result);
+                    if (instruction.Flag.Has(OpCodeManager.OpCodeFlag.Size8))
+                        cpu.CalculateIncFlags8Bit((byte)value, 1, result);
+                    else cpu.CalculateIncFlags16Bit(value, 1, result);
                     break;
                 case OpCodeManager.InstructionType.Negate:
                     result = ~value + 1;
-                    cpu.CalculateFlags(instruction.Flag.Has(OpCodeManager.OpCodeFlag.Size8), value, 1, result);
+                    if (instruction.Flag.Has(OpCodeManager.OpCodeFlag.Size8))
+                        cpu.CalculateSubFlags8Bit(0, (byte)value, result);
+                    else cpu.CalculateSubFlags16Bit(0, value, result);
                     break;
                 case OpCodeManager.InstructionType.Not:
                     result = ~value;
@@ -1242,7 +1389,8 @@ namespace Sharp8086.CPU
             }
             var result = value1 - value2;
 
-            cpu.CalculateFlags(instruction.Flag.Has(OpCodeManager.OpCodeFlag.Size8), value1, value2, result);
+            if (instruction.Flag.Has(OpCodeManager.OpCodeFlag.Size8)) cpu.CalculateSubFlags8Bit((byte)value1, (byte)value2, result);
+            else cpu.CalculateSubFlags16Bit(value1, value2, result);
 
             if (!cpu.GetFlags().Has(FlagsRegister.Direction))
             {
@@ -1584,7 +1732,8 @@ namespace Sharp8086.CPU
                     throw new ArgumentOutOfRangeException();
             }
 
-            cpu.CalculateFlags(instruction.Flag.Has(OpCodeManager.OpCodeFlag.Size8), value1, value2, (int)result);
+            if (instruction.Flag.Has(OpCodeManager.OpCodeFlag.Size8)) cpu.CalculateAddFlags8Bit((byte)value1, (byte)value2, (int)result);
+            else cpu.CalculateAddFlags16Bit(value1, value2, (int)result);
 
             cpu.SetRegister(Register.AX, (ushort)result);
             if (!instruction.Flag.Has(OpCodeManager.OpCodeFlag.Size8))
@@ -1637,7 +1786,8 @@ namespace Sharp8086.CPU
                 cpu.SetRegister(Register.DX, (ushort)remainder);
             }
 
-            cpu.CalculateFlags(instruction.Flag.Has(OpCodeManager.OpCodeFlag.Size8), (ushort)value1, value2, (int)quotient);
+            if (instruction.Flag.Has(OpCodeManager.OpCodeFlag.Size8)) cpu.CalculateAddFlags8Bit((byte)value1, (byte)value2, (int)quotient);
+            else cpu.CalculateAddFlags16Bit((ushort)value1, value2, (int)quotient);
         }
         private static void DispatchPush([NotNull] Cpu8086 cpu, OpCodeManager.Instruction instruction)
         {
