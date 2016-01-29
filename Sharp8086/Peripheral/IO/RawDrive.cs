@@ -31,8 +31,9 @@ namespace Sharp8086.Peripheral.IO
     [PublicAPI]
     public sealed class RawDrive : IDrive
     {
-        private bool readWrite;
         [NotNull] private readonly byte[] data;
+        private bool readWrite;
+        private bool isFloppy;
 
         [PublicAPI]
         public RawDrive([NotNull] Stream backing, bool readWrite, bool isFloppyDrive, byte sectors, ushort cylinders, byte heads)
@@ -45,7 +46,7 @@ namespace Sharp8086.Peripheral.IO
                 throw new ArgumentOutOfRangeException(nameof(heads));
 
             this.readWrite = readWrite;
-            IsFloppyDrive = isFloppyDrive;
+            isFloppy = isFloppyDrive;
             NumberSectors = sectors;
             NumberCylinders = cylinders;
             NumberHeads = heads;
@@ -63,8 +64,27 @@ namespace Sharp8086.Peripheral.IO
             return buffer;
         }
 
-        public bool IsFloppyDrive { get; }
-
+        public byte FloppyType
+        {
+            get
+            {
+                if (!isFloppy)
+                    return 0;
+                switch (data.Length)
+                {
+                    case 360 * 1024:
+                        return 1;
+                    case 1200 * 1024:
+                        return 2;
+                    case 720 * 1024:
+                        return 3;
+                    case 1440 * 1024:
+                        return 4;
+                    default:
+                        return 1;
+                }
+            }
+        }
         public byte NumberSectors { get; }
         public byte NumberHeads { get; }
         public ushort NumberCylinders { get; }

@@ -22,24 +22,35 @@
 // // SOFTWARE.
 #endregion
 
-using JetBrains.Annotations;
+using System.Collections.Generic;
 using Sharp8086.Core;
 
-namespace Sharp8086.Peripheral.IO
+namespace Sharp8086.CPU
 {
-    [PublicAPI]
-    public interface IDrive : IDevice
+    public sealed class PIC : IIOMappedDevice
     {
-        [NotNull, PublicAPI, Pure]
-        byte[] Read(uint offset, uint size);
+        private const ushort PIC1_COMMAND = 0x0020;
+        private const ushort PIC1_DATA = 0x0021;
+        private const ushort PIC2_COMMAND = 0x00A0;
+        private const ushort PIC2_DATA = 0x00A1;
 
-        [PublicAPI]
-        byte FloppyType { [Pure] get; }
-        [PublicAPI]
-        byte NumberSectors { [Pure] get; }
-        [PublicAPI]
-        byte NumberHeads { [Pure] get; }
-        [PublicAPI]
-        ushort NumberCylinders { [Pure] get; }
+        public byte ReadU8(ushort port)
+        {
+            throw new System.NotImplementedException();
+        }
+        public void WriteU8(ushort port, byte value)
+        {
+            if (port == PIC1_COMMAND && value == 0x20)
+                return;
+            throw new System.NotImplementedException();
+        }
+
+        public IEnumerable<ushort> MappedPorts => new ushort[]
+        {
+            PIC1_COMMAND,
+            PIC1_DATA,
+            PIC2_COMMAND,
+            PIC2_DATA
+        };
     }
 }

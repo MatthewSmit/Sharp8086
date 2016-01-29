@@ -45,11 +45,13 @@
     <Reference Include="Microsoft.CSharp" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Core\IIOMappedDevice.cs" />
     <Compile Include="CPU\BiosData.cs" />
     <Compile Include="CPU\ConventionalPageController.cs" />
     <Compile Include="CPU\EnumExtensions.cs" />
     <Compile Include="CPU\IInstructionFetcher.cs" />
     <Compile Include="CPU\OpCodeManager.cs" />
+    <Compile Include="CPU\PIC.cs" />
     <Compile Include="Peripheral\Graphics\GraphicsDevice.cs" />
     <Compile Include="Peripheral\Graphics\SDL.cs" />
     <Compile Include="Peripheral\IO\IDrive.cs" />

@@ -40,7 +40,8 @@ cpu	8086
 %endmacro
 
 %define emulatorSetup emulatorCall 0x01
-%define emulatorRead emulatorCall 0x02
+%define emulatorDisk emulatorCall 0x02
+%define emulatorClock emulatorCall 0x03
 
 data:
 	cursorX db 0
@@ -211,12 +212,15 @@ int13:
 	je SectorDriveReset
 	cmp ah, 0x02
 	je SectorRead
+	cmp ah, 0x08
+	je SectorDriveInformation
+	cmp ah, 0x15
+	je SectorDiskInformation
 	int 3
 	iret
 	
 SectorDriveReset:
-	clc
-	iret
+	jmp ReachStackClearCarry
 	
 SectorRead:
 	; AL = number of sectors to read (must be nonzero)
@@ -249,7 +253,8 @@ cpu	186
 cpu	8086
 	mov [ss:bp - 03], al
 	
-	emulatorRead
+	mov ah, 0x02
+	emulatorDisk
 	
 	cmp ax, 0
 	je SectorReadSuccess
@@ -259,39 +264,56 @@ cpu	8086
 	mov al, 0
 	
 	functionExit 10
-	stc
-	
-	jmp SectorReadEnd
+	jmp ReachStackSetCarry
 	
 SectorReadSuccess:
 	mov al, [ss:bp - 06]
 	functionExit 10
-	clc
+	jmp ReachStackClearCarry
 	
-SectorReadEnd:
+SectorDriveInformation:
+	emulatorDisk
+	cmp ah, 0x00
+	je ReachStackClearCarry
+	jmp ReachStackSetCarry
 	
-	iret
+SectorDiskInformation:
+	emulatorDisk
+	jmp ReachStackClearCarry
 
 ; int 0x14, Serial Communication
 int14:
 	mov	ax, 0
 	iret
 
+; int 0x15, Configuration
 int15:
-int 3
-iret
+	cmp ah, 0xC0
+	je GetConfiguration
+	
+	int 3
+	iret
+
+GetConfiguration:
+	jmp ReachStackSetCarry
 
 ; int 0x16, Keyboard
 int16:
+	cmp ah, 0x00
+	je KeyboardGetKeystroke
 	cmp ah, 0x01
 	je KeyboardCheckPress
 	
 	int 3
 	iret
 
-KeyboardCheckPress:
-	xor ax, ax
+KeyboardGetKeystroke:
+	mov ah, 0
+	mov al, 0
 	iret
+
+KeyboardCheckPress:
+	jmp ReachStackSetZero
 
 ; int 0x17, Printer
 int17:
@@ -306,7 +328,32 @@ PrinterInitialize:
 
 int18:
 int19:
+int 3
+iret
+
+; int 0x1A, Clock
 int1a:
+	cmp ah, 0x00
+	je ClockGetTime
+	cmp ah, 0x02
+	je ClockGetRTC
+	cmp ah, 0x04
+	je ClockGetDate
+	int 3
+	iret
+
+ClockGetTime:
+	emulatorClock
+	iret
+
+ClockGetRTC:
+	emulatorClock
+	jmp ReachStackClearCarry
+
+ClockGetDate:
+	emulatorClock
+	jmp ReachStackClearCarry
+
 int1b:
 int1c:
 int1d:
@@ -314,6 +361,32 @@ int1e:
 int1f:
 int 3
 iret
+
+; Commands to set/clear stack carry flag
+ReachStackSetCarry:
+	xchg bp, sp
+	or word[bp + 4], 1
+	xchg bp, sp
+	iret
+
+ReachStackClearCarry:
+	xchg bp, sp
+	and word[bp + 4], 0xFFFE
+	xchg bp, sp
+	iret
+
+; Commands to set/clear stack zero flag
+ReachStackSetZero:
+	xchg bp, sp
+	or word[bp + 4], 0x40
+	xchg bp, sp
+	iret
+
+ReachStackClearZero:
+	xchg bp, sp
+	and word[bp + 4], 0xFFBF
+	xchg bp, sp
+	iret
 
 ; Interrupt vector table - to copy to 0:0
 

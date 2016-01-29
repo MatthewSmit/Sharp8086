@@ -26,6 +26,7 @@ using System;
 using System.Collections.Generic;
 using SDL2;
 using Sharp8086.Core;
+using Sharp8086.CPU;
 
 namespace Sharp8086.Peripheral.Graphics
 {
@@ -295,7 +296,7 @@ namespace Sharp8086.Peripheral.Graphics
 
         public IEnumerable<Tuple<uint, uint>> MappedMemory => new[]
         {
-            new Tuple<uint, uint>(MEMORY_BASE, MEMORY_SIZE)
+            new Tuple<uint, uint>(MEMORY_BASE >> Cpu8086.PAGE_SHIFT, MEMORY_SIZE >> Cpu8086.PAGE_SHIFT)
         };
     }
 }

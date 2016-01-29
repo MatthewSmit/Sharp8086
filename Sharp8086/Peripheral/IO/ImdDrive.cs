@@ -156,8 +156,25 @@ namespace Sharp8086.Peripheral.IO
             }
         }
 
-        public bool IsFloppyDrive => true;
-
+        public byte FloppyType
+        {
+            get
+            {
+                switch (data.Length)
+                {
+                    case 360 * 1024:
+                        return 1;
+                    case 1200 * 1024:
+                        return 2;
+                    case 720 * 1024:
+                        return 3;
+                    case 1440 * 1024:
+                        return 4;
+                    default:
+                        return 1;
+                }
+            }
+        }
         public byte NumberSectors { get; }
         public byte NumberHeads => 2;
         public ushort NumberCylinders { get; }
