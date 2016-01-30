@@ -50,9 +50,11 @@
     <Compile Include="CPU\ConventionalPageController.cs" />
     <Compile Include="CPU\EnumExtensions.cs" />
     <Compile Include="CPU\IInstructionFetcher.cs" />
+    <Compile Include="CPU\IntervalTimer.cs" />
     <Compile Include="CPU\OpCodeManager.cs" />
-    <Compile Include="CPU\PIC.cs" />
+    <Compile Include="CPU\InterruptController.cs" />
     <Compile Include="Peripheral\Graphics\GraphicsDevice.cs" />
+    <Compile Include="Peripheral\Graphics\GraphicsFont.cs" />
     <Compile Include="Peripheral\Graphics\SDL.cs" />
     <Compile Include="Peripheral\IO\IDrive.cs" />
     <Compile Include="Core\IMemoryMappedDevice.cs" />

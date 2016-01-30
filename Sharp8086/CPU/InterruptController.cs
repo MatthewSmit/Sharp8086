@@ -22,30 +22,36 @@
 // // SOFTWARE.
 #endregion
 
+using System;
 using System.Collections.Generic;
 using Sharp8086.Core;
 
 namespace Sharp8086.CPU
 {
-    public sealed class PIC : IIOMappedDevice
+    public sealed class InterruptController : IIOMappedDevice
     {
         private const ushort PIC1_COMMAND = 0x0020;
         private const ushort PIC1_DATA = 0x0021;
         private const ushort PIC2_COMMAND = 0x00A0;
         private const ushort PIC2_DATA = 0x00A1;
 
-        public byte ReadU8(ushort port)
+        private bool inInterrupt;
+
+        byte IIOMappedDevice.ReadU8(ushort port)
         {
-            throw new System.NotImplementedException();
+            throw new NotImplementedException();
         }
-        public void WriteU8(ushort port, byte value)
+        void IIOMappedDevice.WriteU8(ushort port, byte value)
         {
-            if (port == PIC1_COMMAND && value == 0x20)
-                return;
-            throw new System.NotImplementedException();
+            if ((port == PIC1_COMMAND || port == PIC2_COMMAND) && value == 0x20)
+                inInterrupt = false;
+            else Console.WriteLine($"Unknown PIC command at {port:X2} with value {value:X2}");
         }
 
-        public IEnumerable<ushort> MappedPorts => new ushort[]
+        /// <summary>
+        /// Returns an IEnumerable of all the IO address ports that this device owns.
+        /// </summary>
+        public IEnumerable<ushort> MappedPorts => new[]
         {
             PIC1_COMMAND,
             PIC1_DATA,

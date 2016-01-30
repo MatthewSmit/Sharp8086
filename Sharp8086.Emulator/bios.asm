@@ -48,12 +48,12 @@ data:
 	cursorY db 0
 
 BiosEntry:
-	; Set up stack to F000:F000
+	cli
+	cld
 
+	; Set up stack to F000:F000
 	mov	sp, 0xF000
 	mov	ss, sp
-
-	cld
 
 ; Fill the bios data area
 	mov ax, biosData
@@ -98,7 +98,6 @@ BiosEntry:
 	int	0x13
 
 ; Jump to boot sector
-
 	jmp	0:0x7c00
 
 ; Interrupt handlers
@@ -272,6 +271,7 @@ SectorReadSuccess:
 	jmp ReachStackClearCarry
 	
 SectorDriveInformation:
+	mov ax, floppyData
 	emulatorDisk
 	cmp ah, 0x00
 	je ReachStackClearCarry
@@ -288,6 +288,8 @@ int14:
 
 ; int 0x15, Configuration
 int15:
+	cmp ah, 0x41
+	je ReachStackSetCarry
 	cmp ah, 0xC0
 	je GetConfiguration
 	
@@ -455,6 +457,9 @@ interruptTable	dw int0
 				dw int1f
 
 interruptSize dw $-interruptTable
+
+floppyData:
+	times 32 db 0
 
 biosData:
 	times 8 dw 0

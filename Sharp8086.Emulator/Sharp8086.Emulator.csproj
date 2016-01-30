@@ -43,6 +43,9 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />
+    <None Include="TestDisks\FreeDOS 1.0.img">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
     <None Include="TestDisks\PC-DOS 1.10.imd">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>

@@ -25,6 +25,7 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Threading;
 using JetBrains.Annotations;
 using Sharp8086.Core;
 using Sharp8086.Peripheral.IO;
@@ -255,14 +256,304 @@ namespace Sharp8086.CPU
             }
             return true;
         }
+
+        /*private static string[] oplist =
+        {
+            "Add",
+            "Add",
+            "Add",
+            "Add",
+            "Add",
+            "Add",
+            "Push",
+            "Pop",
+            "Or",
+            "Or",
+            "Or",
+            "Or",
+            "Or",
+            "Or",
+            "Push",
+            "EmulatorSpecial",
+            "Adc",
+            "Adc",
+            "Adc",
+            "Adc",
+            "Adc",
+            "Adc",
+            "Push",
+            "Pop",
+            "Sbb",
+            "Sbb",
+            "Sbb",
+            "Sbb",
+            "Sbb",
+            "Sbb",
+            "Push",
+            "Pop",
+            "And",
+            "And",
+            "And",
+            "And",
+            "And",
+            "And",
+            "Prefix",
+            "Daa",
+            "Subtract",
+            "Subtract",
+            "Subtract",
+            "Subtract",
+            "Subtract",
+            "Subtract",
+            "Prefix",
+            "Das",
+            "Xor",
+            "Xor",
+            "Xor",
+            "Xor",
+            "Xor",
+            "Xor",
+            "Prefix",
+            "Aaa",
+            "Compare",
+            "Compare",
+            "Compare",
+            "Compare",
+            "Compare",
+            "Compare",
+            "Prefix",
+            "Aas",
+            "Increment",
+            "Increment",
+            "Increment",
+            "Increment",
+            "Increment",
+            "Increment",
+            "Increment",
+            "Increment",
+            "Decrement",
+            "Decrement",
+            "Decrement",
+            "Decrement",
+            "Decrement",
+            "Decrement",
+            "Decrement",
+            "Decrement",
+            "Push",
+            "Push",
+            "Push",
+            "Push",
+            "Push",
+            "Push",
+            "Push",
+            "Push",
+            "Pop",
+            "Pop",
+            "Pop",
+            "Pop",
+            "Pop",
+            "Pop",
+            "Pop",
+            "Pop",
+            "Invalid",
+            "Invalid",
+            "Invalid",
+            "Invalid",
+            "Invalid",
+            "Invalid",
+            "Invalid",
+            "Invalid",
+            "Invalid",
+            "Invalid",
+            "Invalid",
+            "Invalid",
+            "Invalid",
+            "Invalid",
+            "Invalid",
+            "Invalid",
+            "JO",
+            "JNO",
+            "JB",
+            "JNB",
+            "JZ",
+            "JNZ",
+            "JBE",
+            "JA",
+            "JS",
+            "JNS",
+            "JPE",
+            "JPO",
+            "JL",
+            "JGE",
+            "JLE",
+            "JG",
+            "Group",
+            "Group",
+            "Group",
+            "Group",
+            "Test",
+            "Test",
+            "Xchg",
+            "Xchg",
+            "Move",
+            "Move",
+            "Move",
+            "Move",
+            "Move",
+            "Lea",
+            "Move",
+            "Pop",
+            "Xchg",
+            "Xchg",
+            "Xchg",
+            "Xchg",
+            "Xchg",
+            "Xchg",
+            "Xchg",
+            "Xchg",
+            "Cbw",
+            "Cwd",
+            "CallFar",
+            "Wait",
+            "Push",
+            "Pop",
+            "Sahf",
+            "Lahf",
+            "Move",
+            "Move",
+            "Move",
+            "Move",
+            "Movs",
+            "Movs",
+            "Cmps",
+            "Cmps",
+            "Test",
+            "Test",
+            "Stos",
+            "Stos",
+            "Lods",
+            "Lods",
+            "Scas",
+            "Scas",
+            "Move",
+            "Move",
+            "Move",
+            "Move",
+            "Move",
+            "Move",
+            "Move",
+            "Move",
+            "Move",
+            "Move",
+            "Move",
+            "Move",
+            "Move",
+            "Move",
+            "Move",
+            "Move",
+            "Group",
+            "Group",
+            "ReturnNear",
+            "ReturnNear",
+            "Les",
+            "Lds",
+            "Move",
+            "Move",
+            "Invalid",
+            "Invalid",
+            "ReturnFar",
+            "ReturnFar",
+            "Int",
+            "Int",
+            "Into",
+            "ReturnInterrupt",
+            "Group",
+            "Group",
+            "Group",
+            "Group",
+            "Aam",
+            "Aad",
+            "Invalid",
+            "Xlat",
+            "Invalid",
+            "Invalid",
+            "Invalid",
+            "Invalid",
+            "Invalid",
+            "Invalid",
+            "Invalid",
+            "Invalid",
+            "Loopnz",
+            "Loopz",
+            "Loop",
+            "Jcxz",
+            "In",
+            "In",
+            "Out",
+            "Out",
+            "CallNearRelative",
+            "JumpRelative",
+            "JumpFar",
+            "JumpRelative",
+            "In",
+            "In",
+            "Out",
+            "Out",
+            "Prefix",
+            "Invalid",
+            "Prefix",
+            "Prefix",
+            "Hlt",
+            "Cmc",
+            "Group",
+            "Group",
+            "Clc",
+            "Stc",
+            "Cli",
+            "Sti",
+            "Cld",
+            "Std",
+            "Group",
+            "Group",
+        };
+
+        private TextWriter z = new StreamWriter(File.Open("dmp.txt", FileMode.Create));*/
+
         public bool ProcessSingleInstruction()
         {
+            /*var savecs = GetRegister(Register.CS);
+            var saveip = GetRegister(Register.IP);
+            if (savecs != 0xF000)
+            {
+                byte opcode;
+                do
+                {
+                    opcode = ReadU8(SegmentToAddress(savecs, saveip));
+                    saveip++;
+                }
+                while (opcode == 0x26 ||
+                       opcode == 0x2E ||
+                       opcode == 0x36 ||
+                       opcode == 0x3E ||
+                       opcode == 0xF0 ||
+                       opcode == 0xF1 ||
+                       opcode == 0xF2);
+                saveip--;
+
+                z.Write($"{savecs:X4}:{saveip:X4} - {oplist[opcode]}\n");
+                z.Write($"AX: {GetRegister(Register.AX):X4}, CX: {GetRegister(Register.CX):X4}, DX: {GetRegister(Register.DX):X4}, BX: {GetRegister(Register.BX):X4}, SP: {GetRegister(Register.SP):X4}, BP: {GetRegister(Register.BP):X4}, SI: {GetRegister(Register.SI):X4}, DI: {GetRegister(Register.DI):X4}\n");
+                z.Write($"ES: {GetRegister(Register.ES):X4}, CS: {GetRegister(Register.CS):X4}, SS: {GetRegister(Register.SS):X4}, DS: {GetRegister(Register.DS):X4}, FLAGS: {GetRegister(Register.FLAGS) | 0xF002:X4}\n");
+            }*/
+
+            //if (GetRegister(Register.CS) == 0x0060 && GetRegister(Register.IP) == 0x001D)
+            //    Debugger.Break();
+
             string instructionText = $"{GetRegister(Register.CS):X4}:{GetRegister(Register.IP):X4} ";
             var instruction = OpCodeManager.Decode(this);
             instructionText += OutputInstruction(instruction);
 
             //if (GetRegister(Register.CS) != 0xF000)
-            Console.WriteLine(instructionText);
+                Console.WriteLine(instructionText);
 
             dispatches[(int)instruction.Type](this, instruction);
             return instruction.Type != OpCodeManager.InstructionType.Hlt;
@@ -344,12 +635,9 @@ namespace Sharp8086.CPU
 
                 case OpCodeManager.ARG_DEREFERENCE:
                 case OpCodeManager.ARG_MEMORY:
-                    var segment = instruction.SegmentPrefix;
-                    if (segment == Register.Invalid) segment = Register.DS;
-                    var address = GetInstructionAddress(instruction.Argument2, instruction.Argument2Value, instruction.Argument2Displacement);
-                    var realAddress = SegmentToAddress(GetRegister(segment), address);
-                    tmp = ReadU16(realAddress);
-                    WriteU16(realAddress, value);
+                    var address = GetInstructionRealAddress(instruction.SegmentPrefix, instruction.Argument2, instruction.Argument2Value, instruction.Argument2Displacement);
+                    tmp = ReadU16(address);
+                    WriteU16(address, value);
                     break;
 
                 default:
@@ -367,6 +655,20 @@ namespace Sharp8086.CPU
             var value = ReadU16(SegmentToAddress(GetRegister(Register.SS), GetRegister(Register.SP)));
             registers[(int)Register.SP] += 2;
             return value;
+        }
+        private uint GetInstructionRealAddress(Register segmentPrefix, int instruction, int instructionValue, int instructionDisplacement)
+        {
+            switch (instruction)
+            {
+                case OpCodeManager.ARG_DEREFERENCE:
+                case OpCodeManager.ARG_MEMORY:
+                    if (segmentPrefix == Register.Invalid) segmentPrefix = Register.DS;
+                    var address = GetInstructionAddress(instruction, instructionValue, instructionDisplacement);
+                    return SegmentToAddress(GetRegister(segmentPrefix), address);
+
+                default:
+                    throw new NotImplementedException();
+            }
         }
         private ushort GetInstructionAddress(int instruction, int instructionValue, int instructionDisplacement)
         {
@@ -414,7 +716,6 @@ namespace Sharp8086.CPU
         }
         private ushort GetInstructionValue(OpCodeManager.OpCodeFlag flag, Register segmentPrefix, int instruction, int instructionValue, int instructionDisplacement)
         {
-            uint address;
             switch (instruction)
             {
                 case (int)Register.AX:
@@ -436,42 +737,8 @@ namespace Sharp8086.CPU
                     return GetRegisterU8((Register)instructionValue);
 
                 case OpCodeManager.ARG_DEREFERENCE:
-                    if (segmentPrefix == Register.Invalid) segmentPrefix = Register.DS;
-                    switch (instructionValue)
-                    {
-                        case 0:
-                            address = (uint)GetRegister(Register.BX) + GetRegister(Register.SI);
-                            break;
-                        case 1:
-                            address = (uint)GetRegister(Register.BX) + GetRegister(Register.DI);
-                            break;
-                        case 2:
-                            address = (uint)GetRegister(Register.BP) + GetRegister(Register.SI);
-                            break;
-                        case 3:
-                            address = (uint)GetRegister(Register.BP) + GetRegister(Register.DI);
-                            break;
-                        case 4:
-                            address = GetRegister(Register.SI);
-                            break;
-                        case 5:
-                            address = GetRegister(Register.DI);
-                            break;
-                        case 6:
-                            address = GetRegister(Register.BP);
-                            break;
-                        case 7:
-                            address = GetRegister(Register.BX);
-                            break;
-                        default:
-                            throw new NotImplementedException();
-                    }
-                    address = SegmentToAddress(GetRegister(segmentPrefix), (ushort)((ushort)address + instructionDisplacement));
-                    return flag.Has(OpCodeManager.OpCodeFlag.Size8) ? ReadU8(address) : ReadU16(address);
-
                 case OpCodeManager.ARG_MEMORY:
-                    if (segmentPrefix == Register.Invalid) segmentPrefix = Register.DS;
-                    address = SegmentToAddress(GetRegister(segmentPrefix), (ushort)instructionValue);
+                    var address = GetInstructionRealAddress(segmentPrefix, instruction, instructionValue, instructionDisplacement);
                     return flag.Has(OpCodeManager.OpCodeFlag.Size8) ? ReadU8(address) : ReadU16(address);
 
                 case OpCodeManager.ARG_CONSTANT:
@@ -716,8 +983,6 @@ namespace Sharp8086.CPU
         {
             var value = cpu.GetInstructionValue(instruction.Flag, instruction.SegmentPrefix, instruction.Argument2, instruction.Argument2Value, instruction.Argument2Displacement);
 
-            Register segment;
-            uint address;
             switch (instruction.Argument1)
             {
                 case (int)Register.AX:
@@ -741,47 +1006,8 @@ namespace Sharp8086.CPU
                     break;
 
                 case OpCodeManager.ARG_DEREFERENCE:
-                    segment = instruction.SegmentPrefix;
-                    if (segment == Register.Invalid) segment = Register.DS;
-                    switch (instruction.Argument1Value)
-                    {
-                        case 0:
-                            address = (uint)cpu.GetRegister(Register.BX) + cpu.GetRegister(Register.SI);
-                            break;
-                        case 1:
-                            address = (uint)cpu.GetRegister(Register.BX) + cpu.GetRegister(Register.DI);
-                            break;
-                        case 2:
-                            address = (uint)cpu.GetRegister(Register.BP) + cpu.GetRegister(Register.SI);
-                            break;
-                        case 3:
-                            address = (uint)cpu.GetRegister(Register.BP) + cpu.GetRegister(Register.DI);
-                            break;
-                        case 4:
-                            address = cpu.GetRegister(Register.SI);
-                            break;
-                        case 5:
-                            address = cpu.GetRegister(Register.DI);
-                            break;
-                        case 6:
-                            address = cpu.GetRegister(Register.BP);
-                            break;
-                        case 7:
-                            address = cpu.GetRegister(Register.BX);
-                            break;
-                        default:
-                            throw new NotImplementedException();
-                    }
-                    address = SegmentToAddress(cpu.GetRegister(segment), (ushort)((ushort)address + instruction.Argument1Displacement));
-                    if (instruction.Flag.Has(OpCodeManager.OpCodeFlag.Size8))
-                        cpu.WriteU8(address, (byte)value);
-                    else cpu.WriteU16(address, value);
-                    break;
-
                 case OpCodeManager.ARG_MEMORY:
-                    segment = instruction.SegmentPrefix;
-                    if (segment == Register.Invalid) segment = Register.DS;
-                    address = SegmentToAddress(cpu.GetRegister(segment), (ushort)instruction.Argument1Value);
+                    var address = cpu.GetInstructionRealAddress(instruction.SegmentPrefix, instruction.Argument1, instruction.Argument1Value, instruction.Argument1Displacement);
                     if (instruction.Flag.Has(OpCodeManager.OpCodeFlag.Size8))
                         cpu.WriteU8(address, (byte)value);
                     else cpu.WriteU16(address, value);
@@ -1051,48 +1277,8 @@ namespace Sharp8086.CPU
                         break;
 
                     case OpCodeManager.ARG_DEREFERENCE:
-                        var segment = instruction.SegmentPrefix;
-                        if (segment == Register.Invalid) segment = Register.DS;
-                        uint address;
-                        switch (instruction.Argument1Value)
-                        {
-                            case 0:
-                                address = (uint)cpu.GetRegister(Register.BX) + cpu.GetRegister(Register.SI);
-                                break;
-                            case 1:
-                                address = (uint)cpu.GetRegister(Register.BX) + cpu.GetRegister(Register.DI);
-                                break;
-                            case 2:
-                                address = (uint)cpu.GetRegister(Register.BP) + cpu.GetRegister(Register.SI);
-                                break;
-                            case 3:
-                                address = (uint)cpu.GetRegister(Register.BP) + cpu.GetRegister(Register.DI);
-                                break;
-                            case 4:
-                                address = cpu.GetRegister(Register.SI);
-                                break;
-                            case 5:
-                                address = cpu.GetRegister(Register.DI);
-                                break;
-                            case 6:
-                                address = cpu.GetRegister(Register.BP);
-                                break;
-                            case 7:
-                                address = cpu.GetRegister(Register.BX);
-                                break;
-                            default:
-                                throw new NotImplementedException();
-                        }
-                        address = SegmentToAddress(cpu.GetRegister(segment), (ushort)((ushort)address + instruction.Argument1Displacement));
-                        if (instruction.Flag.Has(OpCodeManager.OpCodeFlag.Size8))
-                            cpu.WriteU8(address, (byte)truncResult);
-                        else cpu.WriteU16(address, truncResult);
-                        break;
-
                     case OpCodeManager.ARG_MEMORY:
-                        segment = instruction.SegmentPrefix;
-                        if (segment == Register.Invalid) segment = Register.DS;
-                        address = SegmentToAddress(cpu.GetRegister(segment), (ushort)instruction.Argument1Value);
+                        var address = cpu.GetInstructionRealAddress(instruction.SegmentPrefix, instruction.Argument1, instruction.Argument1Value, instruction.Argument1Displacement);
                         if (instruction.Flag.Has(OpCodeManager.OpCodeFlag.Size8))
                             cpu.WriteU8(address, (byte)truncResult);
                         else cpu.WriteU16(address, truncResult);
@@ -1151,10 +1337,9 @@ namespace Sharp8086.CPU
                     cpu.SetRegisterU8((Register)instruction.Argument1Value, (byte)result);
                     break;
 
+                case OpCodeManager.ARG_DEREFERENCE:
                 case OpCodeManager.ARG_MEMORY:
-                    var segment = instruction.SegmentPrefix;
-                    if (segment == Register.Invalid) segment = Register.DS;
-                    var address = SegmentToAddress(cpu.GetRegister(segment), (ushort)instruction.Argument1Value);
+                    var address = cpu.GetInstructionRealAddress(instruction.SegmentPrefix, instruction.Argument1, instruction.Argument1Value, instruction.Argument1Displacement);
                     if (instruction.Flag.Has(OpCodeManager.OpCodeFlag.Size8))
                         cpu.WriteU8(address, (byte)result);
                     else cpu.WriteU16(address, (ushort)result);
@@ -1220,7 +1405,6 @@ namespace Sharp8086.CPU
         }
         private static void DispatchFarJump([NotNull] Cpu8086 cpu, OpCodeManager.Instruction instruction)
         {
-            Register segment;
             switch (instruction.Argument1)
             {
                 case OpCodeManager.ARG_FAR_MEMORY:
@@ -1228,47 +1412,9 @@ namespace Sharp8086.CPU
                     cpu.SetRegister(Register.IP, (ushort)(instruction.Argument1Value & 0xFFFF));
                     break;
 
-                case OpCodeManager.ARG_MEMORY:
-                    segment = instruction.SegmentPrefix;
-                    if (segment == Register.Invalid) segment = Register.DS;
-                    var address = SegmentToAddress(cpu.GetRegister(segment), (ushort)instruction.Argument1Value);
-                    cpu.SetRegister(Register.CS, cpu.ReadU16(address + 2));
-                    cpu.SetRegister(Register.IP, cpu.ReadU16(address));
-                    break;
-
                 case OpCodeManager.ARG_DEREFERENCE:
-                    segment = instruction.SegmentPrefix;
-                    if (segment == Register.Invalid) segment = Register.DS;
-                    switch (instruction.Argument1Value)
-                    {
-                        case 0:
-                            address = (uint)cpu.GetRegister(Register.BX) + cpu.GetRegister(Register.SI);
-                            break;
-                        case 1:
-                            address = (uint)cpu.GetRegister(Register.BX) + cpu.GetRegister(Register.DI);
-                            break;
-                        case 2:
-                            address = (uint)cpu.GetRegister(Register.BP) + cpu.GetRegister(Register.SI);
-                            break;
-                        case 3:
-                            address = (uint)cpu.GetRegister(Register.BP) + cpu.GetRegister(Register.DI);
-                            break;
-                        case 4:
-                            address = cpu.GetRegister(Register.SI);
-                            break;
-                        case 5:
-                            address = cpu.GetRegister(Register.DI);
-                            break;
-                        case 6:
-                            address = cpu.GetRegister(Register.BP);
-                            break;
-                        case 7:
-                            address = cpu.GetRegister(Register.BX);
-                            break;
-                        default:
-                            throw new NotImplementedException();
-                    }
-                    address = SegmentToAddress(cpu.GetRegister(segment), (ushort)((ushort)address + instruction.Argument1Displacement));
+                case OpCodeManager.ARG_MEMORY:
+                    var address = cpu.GetInstructionRealAddress(instruction.SegmentPrefix, instruction.Argument1, instruction.Argument1Value, instruction.Argument1Displacement);
                     cpu.SetRegister(Register.CS, cpu.ReadU16(address + 2));
                     cpu.SetRegister(Register.IP, cpu.ReadU16(address));
                     break;
@@ -1639,15 +1785,8 @@ namespace Sharp8086.CPU
             cpu.CalculateSubFlags(instruction.Flag, value1, value2, result);
 
             if (!cpu.GetFlags().Has(FlagsRegister.Direction))
-            {
                 cpu.registers[(int)Register.DI] += size;
-                cpu.registers[(int)Register.SI] += size;
-            }
-            else
-            {
-                cpu.registers[(int)Register.DI] -= size;
-                cpu.registers[(int)Register.SI] -= size;
-            }
+            else cpu.registers[(int)Register.DI] -= size;
         }
         private static void DispatchReturnNear([NotNull] Cpu8086 cpu, OpCodeManager.Instruction instruction)
         {
@@ -1666,9 +1805,7 @@ namespace Sharp8086.CPU
         }
         private static void DispatchLoadFarPointer([NotNull] Cpu8086 cpu, OpCodeManager.Instruction instruction, Register register)
         {
-            var prefix = instruction.SegmentPrefix;
-            if (prefix == Register.Invalid) prefix = Register.DS;
-            var address = SegmentToAddress(cpu.GetRegister(prefix), cpu.GetInstructionAddress(instruction.Argument2, instruction.Argument2Value, instruction.Argument2Displacement));
+            var address = cpu.GetInstructionRealAddress(instruction.SegmentPrefix, instruction.Argument2, instruction.Argument2Value, instruction.Argument2Displacement);
             var memory = cpu.ReadU16(address);
             var segment = cpu.ReadU16(address + 2);
 
@@ -2035,10 +2172,8 @@ namespace Sharp8086.CPU
 
                 case OpCodeManager.ARG_DEREFERENCE:
                 case OpCodeManager.ARG_MEMORY:
-                    var segment = instruction.SegmentPrefix;
-                    if (segment == Register.Invalid) segment = Register.DS;
-                    var address = cpu.GetInstructionAddress(instruction.Argument1, instruction.Argument1Value, instruction.Argument1Displacement);
-                    cpu.Push(cpu.ReadU16(SegmentToAddress(cpu.GetRegister(segment), address)));
+                    var address = cpu.GetInstructionRealAddress(instruction.SegmentPrefix, instruction.Argument1, instruction.Argument1Value, instruction.Argument1Displacement);
+                    cpu.Push(cpu.ReadU16(address));
                     break;
 
                 default:
@@ -2071,10 +2206,8 @@ namespace Sharp8086.CPU
 
                 case OpCodeManager.ARG_DEREFERENCE:
                 case OpCodeManager.ARG_MEMORY:
-                    var segment = instruction.SegmentPrefix;
-                    if (segment == Register.Invalid) segment = Register.DS;
-                    var address = cpu.GetInstructionAddress(instruction.Argument1, instruction.Argument1Value, instruction.Argument1Displacement);
-                    cpu.WriteU16(SegmentToAddress(cpu.GetRegister(segment), address), cpu.Pop());
+                    var address = cpu.GetInstructionRealAddress(instruction.SegmentPrefix, instruction.Argument1, instruction.Argument1Value, instruction.Argument1Displacement);
+                    cpu.WriteU16(address, cpu.Pop());
                     break;
 
                 default:
@@ -2151,6 +2284,7 @@ namespace Sharp8086.CPU
         }
         private static void DispatchDriveInformation([NotNull] Cpu8086 cpu)
         {
+            var driveTable = cpu.GetRegister(Register.AX);
             var driveNumber = cpu.GetRegisterU8(Register.DL);
 
             if (cpu.drives[driveNumber] != null)
@@ -2175,6 +2309,15 @@ namespace Sharp8086.CPU
                     for (numberDrives = 0; numberDrives < 0x80; numberDrives++)
                         if (cpu.drives[numberDrives] == null)
                             break;
+
+                    var address = (ushort)(driveTable + 0x10 * driveNumber);
+
+                    cpu.WriteU8(SegmentToAddress(0xF000, address), (byte)drive.NumberCylinders);
+                    cpu.WriteU8(SegmentToAddress(0xF000, address) + 1, drive.NumberHeads);
+                    cpu.WriteU8(SegmentToAddress(0xF000, address) + 0xE, drive.NumberSectors);
+
+                    cpu.SetRegister(Register.ES, 0xF000);
+                    cpu.SetRegister(Register.DI, address);
                 }
                 cpu.SetRegisterU8(Register.DL, numberDrives);
             }
@@ -2412,7 +2555,7 @@ namespace Sharp8086.CPU
                     return (byte)((GetRegister(Register.BX) >> 8) & 0xFF);
 
                 case Register.FLAGS:
-                    return (ushort)((ushort)flags | 2);
+                    return (ushort)((ushort)flags | 0xF002);
 
                 default:
                     throw new ArgumentOutOfRangeException(nameof(register));
