@@ -1,30 +1,5 @@
-﻿#region License
-// // The MIT License (MIT)
-// // 
-// // Copyright (c) 2016 Digital Singularity
-// // 
-// // Permission is hereby granted, free of charge, to any person obtaining a copy
-// // of this software and associated documentation files (the "Software"), to deal
-// // in the Software without restriction, including without limitation the rights
-// // to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// // copies of the Software, and to permit persons to whom the Software is
-// // furnished to do so, subject to the following conditions:
-// // 
-// // The above copyright notice and this permission notice shall be included in all
-// // copies or substantial portions of the Software.
-// // 
-// // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// // AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-// // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-// // SOFTWARE.
-#endregion
-
-using System;
+﻿using System;
 using System.Diagnostics;
-using JetBrains.Annotations;
 
 namespace Sharp8086.CPU
 {
@@ -512,7 +487,7 @@ namespace Sharp8086.CPU
             public int Argument2Displacement;
         }
 
-        public static Instruction Decode([NotNull] IInstructionFetcher fetcher)
+        public static Instruction Decode(IInstructionFetcher fetcher)
         {
             Instruction instruction;
 
@@ -583,7 +558,7 @@ namespace Sharp8086.CPU
             return instruction;
         }
 
-        private static void ParseArgument([NotNull] IInstructionFetcher fetcher, OpCodeFlag flag, out int argument, out int argumentValue, out int argumentDisplacement, int argumentType, byte modrm)
+        private static void ParseArgument(IInstructionFetcher fetcher, OpCodeFlag flag, out int argument, out int argumentValue, out int argumentDisplacement, int argumentType, byte modrm)
         {
             var mod = (byte)((modrm >> 6) & 7);
             var reg = (byte)((modrm >> 3) & 7);
@@ -750,7 +725,6 @@ namespace Sharp8086.CPU
                     throw new NotImplementedException();
             }
         }
-        [Pure]
         private static InstructionType ConvertFromGroup(byte opcode, byte modrm)
         {
             var reg = (byte)((modrm >> 3) & 7);

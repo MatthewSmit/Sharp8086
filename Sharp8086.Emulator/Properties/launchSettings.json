@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "Sharp8086.Emulator": {
+      "commandName": "Project",
+      "commandLineArgs": "$(ProjectDir)/TestDisks/Dos1.25.imd"
+    }
+  }
+}

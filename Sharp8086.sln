@@ -1,13 +1,13 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 14
-VisualStudioVersion = 14.0.24720.0
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.29806.167
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sharp8086", "Sharp8086\Sharp8086.csproj", "{0644C564-F68E-4252-8B5B-2AA9C7DE3242}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Sharp8086", "Sharp8086\Sharp8086.csproj", "{BBB07A61-B551-4786-BEB2-93B96F3A4D5A}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sharp8086.Emulator", "Sharp8086.Emulator\Sharp8086.Emulator.csproj", "{D4D3A092-A450-4A90-B15E-B87988FBC376}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sharp8086.Emulator", "Sharp8086.Emulator\Sharp8086.Emulator.csproj", "{44D74D42-3550-4F1C-B310-DB8BDAEB12EA}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sharp8086.Test", "Sharp8086.Test\Sharp8086.Test.csproj", "{1E97D603-8F3C-47D2-A005-254AD045C090}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sharp8086.Test", "Sharp8086.Test\Sharp8086.Test.csproj", "{E1BFC8AC-6794-4AE5-81B0-53C6D1CEC00D}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -15,20 +15,23 @@ Global
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{0644C564-F68E-4252-8B5B-2AA9C7DE3242}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{0644C564-F68E-4252-8B5B-2AA9C7DE3242}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{0644C564-F68E-4252-8B5B-2AA9C7DE3242}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{0644C564-F68E-4252-8B5B-2AA9C7DE3242}.Release|Any CPU.Build.0 = Release|Any CPU
-		{D4D3A092-A450-4A90-B15E-B87988FBC376}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{D4D3A092-A450-4A90-B15E-B87988FBC376}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{D4D3A092-A450-4A90-B15E-B87988FBC376}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{D4D3A092-A450-4A90-B15E-B87988FBC376}.Release|Any CPU.Build.0 = Release|Any CPU
-		{1E97D603-8F3C-47D2-A005-254AD045C090}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{1E97D603-8F3C-47D2-A005-254AD045C090}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{1E97D603-8F3C-47D2-A005-254AD045C090}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{1E97D603-8F3C-47D2-A005-254AD045C090}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BBB07A61-B551-4786-BEB2-93B96F3A4D5A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BBB07A61-B551-4786-BEB2-93B96F3A4D5A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BBB07A61-B551-4786-BEB2-93B96F3A4D5A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BBB07A61-B551-4786-BEB2-93B96F3A4D5A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{44D74D42-3550-4F1C-B310-DB8BDAEB12EA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{44D74D42-3550-4F1C-B310-DB8BDAEB12EA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{44D74D42-3550-4F1C-B310-DB8BDAEB12EA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{44D74D42-3550-4F1C-B310-DB8BDAEB12EA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E1BFC8AC-6794-4AE5-81B0-53C6D1CEC00D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E1BFC8AC-6794-4AE5-81B0-53C6D1CEC00D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E1BFC8AC-6794-4AE5-81B0-53C6D1CEC00D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E1BFC8AC-6794-4AE5-81B0-53C6D1CEC00D}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {7EAF9228-ED84-48CA-B27A-3FA3D4D61E5F}
 	EndGlobalSection
 EndGlobal

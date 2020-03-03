@@ -1,35 +1,10 @@
-﻿#region License
-// The MIT License (MIT)
-// 
-// Copyright (c) 2016 Digital Singularity
-// 
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-// 
-// The above copyright notice and this permission notice shall be included in all
-// copies or substantial portions of the Software.
-// 
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-// SOFTWARE.
-#endregion
-
-using System;
+﻿using System;
 using System.IO;
 using SDL2;
 using Sharp8086.Core;
 using Sharp8086.CPU;
 using Sharp8086.Peripheral.Graphics;
 using Sharp8086.Peripheral.IO;
-using Sharp8086.Test;
 
 namespace Sharp8086.Emulator
 {
@@ -37,9 +12,11 @@ namespace Sharp8086.Emulator
     {
         private static ICpu cpu;
 
-        private static void Main()
+        private static void Main(string[] args)
         {
-            InitCpu();
+            // TODO: Better argument parsing
+
+            InitCpu(args[0]);
 
             if (SDL.SDL_Init(SDL.SDL_INIT_VIDEO) != 0)
                 throw new InvalidOperationException();
@@ -59,17 +36,13 @@ namespace Sharp8086.Emulator
                 var quit = false;
                 while (!quit)
                 {
-                    SDL.SDL_Event evt;
-                    while (SDL.SDL_PollEvent(out evt) != 0)
+                    while (SDL.SDL_PollEvent(out var evt) != 0)
                     {
                         if (evt.type == SDL.SDL_EventType.SDL_QUIT)
                             quit = true;
                     }
 
-                    const int instructionsToProcess = 100;
-                    for (var i = instructionsToProcess; i >= 0; i--)
-                        if (!cpu.ProcessInstruction())
-                            break;
+                    cpu.ProcessInstructions(100);
 
                     graphics.Draw();
                     SDL.SDL_RenderPresent(renderer);
@@ -80,13 +53,35 @@ namespace Sharp8086.Emulator
             SDL.SDL_DestroyWindow(window);
             SDL.SDL_Quit();
         }
-        private static void InitCpu()
+        private static void InitCpu(string diskFile)
         {
-            using (var file = File.OpenRead("bios"))
-                cpu = new Cpu8086(file, 1024 * 1024);
+            using var file = File.OpenRead("bios");
+            using var disk = File.OpenRead(diskFile);
 
-            using (var disk = File.OpenRead("TestDisks/Dos6.22.img"))
-                cpu.AttachDevice(new RawDrive(disk, false, true, 18, 80, 2));
+            cpu = new Cpu8086(file, 1024 * 1024);
+            cpu.AttachDevice(new RawDrive(disk, false, true, 18, 80, 2));
+
+            // TODO
+            // using (var file = File.OpenRead(@"C:\Work\FakeSharp\FakeSharp\pcxtbios.bin"))
+            //     //using (var file = File.OpenRead("bios"))
+            //     cpu = new Cpu8086(file, 1024 * 1024);
+            //
+            // cpu.AttachDevice(new IntervalTimer());
+            // cpu.AttachDevice(new InterruptController());
+            //
+            // //using (var disk = File.OpenRead("TestDisks/Dos1.25.imd"))
+            // //    cpu.AttachDevice(new ImdDrive(disk));
+            // //using (var disk = File.OpenRead("TestDisks/PC-DOS 1.10.imd"))
+            // //    cpu.AttachDevice(new ImdDrive(disk));
+            // //using (var disk = File.OpenRead("TestDisks/MS-DOS 6.22 Boot Disk.img"))
+            // //    cpu.AttachDevice(new RawDrive(disk, false, true, 18, 80, 2));
+            // //using (var disk = File.OpenRead("TestDisks/MS-DOS 5.0 Disk 1.img"))
+            // //    cpu.AttachDevice(new RawDrive(disk, false, true, 9, 80, 2));
+            // //using (var disk = File.OpenRead("TestDisks/MS-DOS 6.22 Disk 1.img"))
+            // //    cpu.AttachDevice(new RawDrive(disk, false, true, 18, 80, 2));
+            // //using (var disk = File.OpenRead("TestDisks/FreeDOS 1.0.img"))
+            // using (var disk = File.OpenRead(@"D:\Work\nasm-2.11.08\8086tiny-master\fd.img"))
+            //     cpu.AttachDevice(new RawDrive(disk, false, true, 18, 80, 2));
         }
     }
 }

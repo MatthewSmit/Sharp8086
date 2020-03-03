@@ -1,79 +1,53 @@
-﻿#region License
-// // The MIT License (MIT)
-// // 
-// // Copyright (c) 2016 Digital Singularity
-// // 
-// // Permission is hereby granted, free of charge, to any person obtaining a copy
-// // of this software and associated documentation files (the "Software"), to deal
-// // in the Software without restriction, including without limitation the rights
-// // to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// // copies of the Software, and to permit persons to whom the Software is
-// // furnished to do so, subject to the following conditions:
-// // 
-// // The above copyright notice and this permission notice shall be included in all
-// // copies or substantial portions of the Software.
-// // 
-// // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// // AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-// // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-// // SOFTWARE.
-#endregion
-
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using JetBrains.Annotations;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
+using NUnit.Framework;
 using Sharp8086.Core;
 using Sharp8086.CPU;
 
 namespace Sharp8086.Test
 {
-    [TestClass]
     public sealed class Cpu8086Test
     {
-        [TestMethod]
+        [Test]
         public void TestAdd() => RunTest("add");
-        [TestMethod]
+        [Test]
         public void TestBcdcnv() => RunTest("bcdcnv");
-        [TestMethod]
+        [Test]
         public void TestBitwise() => RunTest("bitwise");
-        [TestMethod]
+        [Test]
         public void TestCmpneg() => RunTest("cmpneg");
-        [TestMethod]
+        [Test]
         public void TestControl() => RunTest("control");
-        [TestMethod]
+        [Test]
         public void TestDatatrnf() => RunTest("datatrnf");
-        [TestMethod]
+        [Test]
         public void TestDiv() => RunTest("div");
-        [TestMethod]
+        [Test]
         public void TestInterrupt() => RunTest("interrupt");
-        [TestMethod]
+        [Test]
         public void TestJumpMove() => RunTest("jmpmov");
-        [TestMethod]
+        [Test]
         public void TestJump1() => RunTest("jump1");
-        [TestMethod]
+        [Test]
         public void TestJump2() => RunTest("jump2");
-        [TestMethod]
+        [Test]
         public void TestMultiply() => RunTest("mul");
-        [TestMethod]
+        [Test]
         public void TestRep() => RunTest("rep");
-        [TestMethod]
+        [Test]
         public void TestRotate() => RunTest("rotate");
-        [TestMethod]
+        [Test]
         public void TestSegpr() => RunTest("segpr");
-        [TestMethod]
+        [Test]
         public void TestShifts() => RunTest("shifts");
-        [TestMethod]
+        [Test]
         public void TestStrings() => RunTest("strings");
-        [TestMethod]
+        [Test]
         public void TestSub() => RunTest("sub");
 
-        private static void RunTest([NotNull] string testFile)
+        private static void RunTest(string testFile)
         {
             ICpu cpu;
             using (var file = File.OpenRead("CpuBinaries/" + testFile))
@@ -100,7 +74,6 @@ namespace Sharp8086.Test
             }
         }
 
-        [NotNull]
         private static List<int> CompareArrays<T>(IReadOnlyList<T> data1, IReadOnlyList<T> data2)
         {
             Assert.AreEqual(data1.Count, data2.Count);
